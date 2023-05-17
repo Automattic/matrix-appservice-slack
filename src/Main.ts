@@ -740,6 +740,14 @@ export class Main {
         this.incCounter(METRIC_RECEIVED_MESSAGE, {side: "matrix"});
         const endTimer = this.startTimer("matrix_request_seconds");
 
+        // Do not post echoes back to Slack.
+        const existingEvent = await this.datastore.getEventByMatrixId(ev.room_id, ev.event_id);
+        if (existingEvent) {
+            log.debug("Ignoring existing event", ev.event_id, ev.room_id);
+            endTimer({outcome: "dropped"});
+            return;
+        }
+
         // Admin room message
         if (ev.room_id === this.config.matrix_admin_room &&
             ev.type === "m.room.message") {
