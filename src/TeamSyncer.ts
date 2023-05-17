@@ -271,7 +271,7 @@ export class TeamSyncer {
 
     public async syncUser(teamId: string, domain: string, item: ISlackUser): Promise<void> {
         log.info(`Syncing user ${teamId} ${item.id}`);
-        const existingGhost = await this.main.ghostStore.getExisting(this.main.ghostStore.getUserId(item.id, domain));
+        const existingGhost = await this.main.ghostStore.getExisting(await this.main.ghostStore.getUserId(item.id, domain));
         if (item.deleted && !existingGhost) {
             // This is a deleted user that we've never seen, bail.
             return;

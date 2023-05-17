@@ -200,7 +200,7 @@ export abstract class BaseSlackHandler {
             const id = match[1];
 
             let displayName = "";
-            const userId = this.main.ghostStore.getUserId(id, teamDomain);
+            const userId = await this.main.ghostStore.getUserId(id, teamDomain);
 
             const users = await this.main.datastore.getUser(userId);
 

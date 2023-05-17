@@ -94,6 +94,11 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
             userData as unknown as Record<string, string|undefined>) : null;
     }
 
+    public async getWporgUsername(slackUserId: string): Promise<string|null> {
+        const dbEntry = await this.postgresDb.oneOrNone("SELECT id FROM wporg_users WHERE slack_user_id = ${slackUserId}", { slackUserId });
+        return dbEntry ? dbEntry.id : null;
+    }
+
     public async getAllUsersForTeam(teamId: string): Promise<UserEntry[]> {
         const users = await this.postgresDb.manyOrNone("SELECT json FROM users WHERE json::json->>'team_id' = ${teamId}", {
             teamId,

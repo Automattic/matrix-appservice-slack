@@ -77,7 +77,7 @@ export class SlackGhostStore {
 
         const domain = teamDomain || await this.getTeamDomainForMessage({}, teamId);
 
-        const userId = this.getUserId(
+        const userId = await this.getUserId(
             slackUserId,
             domain,
         );
