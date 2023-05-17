@@ -271,7 +271,7 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
         let currentVersion = await this.getSchemaVersion();
         while (currentVersion < PgDatastore.LATEST_SCHEMA) {
             let newVersion = currentVersion + 1;
-            if (PgDatastore.LATEST_SCHEMA === 161) {
+            if (currentVersion === 16 && PgDatastore.LATEST_SCHEMA === 161) {
                 newVersion = 161;
             }
             if (currentVersion === 161) {
