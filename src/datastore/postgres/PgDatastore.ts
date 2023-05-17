@@ -265,9 +265,12 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
         const userMessages: SchemaRunUserMessage[] = [];
         let currentVersion = await this.getSchemaVersion();
         while (currentVersion < PgDatastore.LATEST_SCHEMA) {
-            log.info(`Updating schema to v${currentVersion + 1}`);
+            const newVersion = currentVersion + 1;
+            const newSchema = `./schema/v${newVersion}`;
+
+            log.info(`Updating schema to v${newVersion}`);
             // eslint-disable-next-line @typescript-eslint/no-var-requires
-            const runSchema: SchemaRunFn = require(`./schema/v${currentVersion + 1}`).runSchema;
+            const runSchema: SchemaRunFn = require(newSchema).runSchema;
             try {
                 const result = await runSchema(this.postgresDb);
                 if (result?.userMessages) {
