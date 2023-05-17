@@ -54,7 +54,17 @@ export class SlackGhostStore {
         return (await nullGhost.getDisplayname(room!.SlackClient!)) || userId;
     }
 
-    public getUserId(id: string, teamDomain: string): string {
+    public async getUserId(id: string, teamDomain: string): Promise<string> {
+        if (["wordpress", "orbit-sandbox"].includes(teamDomain)) {
+            const wporgUsername = await this.datastore.getWporgUsername(id);
+            if (wporgUsername) {
+                log.info("Found wporg username:", wporgUsername, id);
+                return `@${wporgUsername}:${this.config.homeserver.server_name}`;
+            } else {
+                log.info("Could not find wporg username for", id);
+            }
+        }
+
         const localpart = `${this.config.username_prefix}${teamDomain.toLowerCase()}_${id.toUpperCase()}`;
         return `@${localpart}:${this.config.homeserver.server_name}`;
     }
