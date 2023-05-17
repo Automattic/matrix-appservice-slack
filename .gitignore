@@ -44,3 +44,5 @@ tsconfig.tsbuildinfo
 .externalToolBuilders/
 
 /public
+
+wporg-user-mapping.csv
