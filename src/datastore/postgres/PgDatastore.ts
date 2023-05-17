@@ -64,7 +64,7 @@ export interface SchemaRunUserMessage {
 type SchemaRunFn = (db: IDatabase<unknown>) => Promise<void|{userMessages: SchemaRunUserMessage[]}>;
 
 export class PgDatastore implements Datastore, ClientEncryptionStore, ProvisioningStore {
-    public static readonly LATEST_SCHEMA = 16;
+    public static readonly LATEST_SCHEMA = 161;
     public readonly postgresDb: IDatabase<any>;
 
     constructor(connectionString: string) {
@@ -265,9 +265,15 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
         const userMessages: SchemaRunUserMessage[] = [];
         let currentVersion = await this.getSchemaVersion();
         while (currentVersion < PgDatastore.LATEST_SCHEMA) {
-            const newVersion = currentVersion + 1;
-            const newSchema = `./schema/v${newVersion}`;
+            let newVersion = currentVersion + 1;
+            if (PgDatastore.LATEST_SCHEMA === 161) {
+                newVersion = 161;
+            }
+            if (currentVersion === 161) {
+                newVersion = 17;
+            }
 
+            const newSchema = `./schema/v${newVersion}`;
             log.info(`Updating schema to v${newVersion}`);
             // eslint-disable-next-line @typescript-eslint/no-var-requires
             const runSchema: SchemaRunFn = require(newSchema).runSchema;
@@ -276,10 +282,10 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
                 if (result?.userMessages) {
                     userMessages.push(...result.userMessages);
                 }
-                currentVersion++;
+                currentVersion = newVersion;
                 await this.updateSchemaVersion(currentVersion);
             } catch (ex) {
-                log.warn(`Failed to run schema v${currentVersion + 1}:`, ex);
+                log.warn(`Failed to run schema v${newVersion}:`, ex);
                 throw Error("Failed to update database schema");
             }
         }
