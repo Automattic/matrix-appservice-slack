@@ -95,8 +95,8 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
     }
 
     public async getWporgUsername(slackUserId: string): Promise<string|null> {
-        const dbEntry = await this.postgresDb.oneOrNone("SELECT id FROM wporg_users WHERE slack_user_id = ${slackUserId}", { slackUserId });
-        return dbEntry ? dbEntry.id : null;
+        const dbEntry = await this.postgresDb.oneOrNone("SELECT wporg_id FROM wporg_users WHERE slack_id = ${slackUserId}", { slackUserId });
+        return dbEntry ? dbEntry.wporg_id : null;
     }
 
     public async getAllUsersForTeam(teamId: string): Promise<UserEntry[]> {
