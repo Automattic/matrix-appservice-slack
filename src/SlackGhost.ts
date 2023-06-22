@@ -321,8 +321,13 @@ export class SlackGhost {
         return Slackdown.parse(body);
     }
 
-    public async sendInThread(roomId: string, text: string, slackRoomId: string,
-        slackEventTs: string, replyEvent: IMatrixReplyEvent): Promise<void> {
+    public async sendInThread(
+        roomId: string,
+        text: string,
+        slackRoomId: string,
+        slackEventTs: string,
+        replyEvent: IMatrixReplyEvent
+    ): Promise<void> {
         const content = {
             "m.relates_to": {
                 "rel_type": "m.thread",
@@ -368,7 +373,12 @@ export class SlackGhost {
         await this.sendMessage(roomId, content, slackRoomID, slackEventTS);
     }
 
-    public async sendMessage(roomId: string, msg: Record<string, unknown>, slackRoomId: string, slackEventTs: string): Promise<{event_id: string}> {
+    public async sendMessage(
+        roomId: string,
+        msg: Record<string, unknown>,
+        slackRoomId: string,
+        slackEventTs: string
+    ): Promise<{ event_id: string }> {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
@@ -390,8 +400,13 @@ export class SlackGhost {
         };
     }
 
-    public async sendReaction(roomId: string, eventId: string, key: string,
-        slackRoomId: string, slackEventTs: string): Promise<{event_id: string}> {
+    public async sendReaction(
+        roomId: string,
+        eventId: string,
+        key: string,
+        slackRoomId: string,
+        slackEventTs: string
+    ): Promise<{event_id: string}> {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
@@ -417,8 +432,13 @@ export class SlackGhost {
         };
     }
 
-    public async sendWithReply(roomId: string, text: string, slackRoomId: string,
-        slackEventTs: string, replyEvent: IMatrixReplyEvent): Promise<void> {
+    public async sendWithReply(
+        roomId: string,
+        text: string,
+        slackRoomId: string,
+        slackEventTs: string,
+        replyEvent: IMatrixReplyEvent
+    ): Promise<void> {
         const fallbackHtml = this.getFallbackHtml(roomId, replyEvent);
         const fallbackText = this.getFallbackText(replyEvent);
 
