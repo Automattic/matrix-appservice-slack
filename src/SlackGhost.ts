@@ -387,15 +387,7 @@ export class SlackGhost {
             throw Error('No intent associated with ghost');
         }
 
-        // Set external_url, unless the msg already has one.
-        // When we're dealing with a message in a thread, the external_url will already have been set.
-        if (!msg.external_url) {
-            const externalUrl = await this.urlForSlackEvent(slackTeamId, slackRoomId, slackEventTs);
-            if (externalUrl) {
-                msg.external_url = externalUrl;
-            }
-        }
-
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs);
         const matrixEvent = await this._intent.sendMessage(roomId, msg) as {event_id?: unknown};
 
         if (typeof matrixEvent !== 'object' || !matrixEvent || typeof matrixEvent.event_id !== 'string') {
@@ -414,21 +406,23 @@ export class SlackGhost {
         };
     }
 
-    private async urlForSlackEvent(
+    private async appendExternalUrlToMessage(
+        msg: Record<string, unknown>,
         slackTeamId: string | undefined,
         slackRoomId: string,
-        slackEventTs: string
-    ): Promise<string | undefined> {
-        if (!slackTeamId) {
-            return;
+        slackEventTs: string,
+    ): Promise<Record<string, unknown>> {
+        if (msg.external_url || !slackTeamId) {
+            return msg;
         }
 
         const team = await this.datastore.getTeam(slackTeamId);
         if (!team || !team.domain) {
-            return;
+            return msg;
         }
 
-        return `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs}`;
+        msg.external_url = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs}`;
+        return msg;
     }
 
     public async sendReaction(
