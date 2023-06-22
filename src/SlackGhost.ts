@@ -372,6 +372,7 @@ export class SlackGhost {
             msgtype: "m.text",
             ...extra,
         };
+
         await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
     }
 
@@ -386,9 +387,13 @@ export class SlackGhost {
             throw Error('No intent associated with ghost');
         }
 
-        const externalUrl = await this.urlForSlackEvent(slackTeamId, slackRoomId, slackEventTs);
-        if (externalUrl) {
-            msg.external_url = externalUrl;
+        // Set external_url, unless the msg already has one.
+        // When we're dealing with a message in a thread, the external_url will already have been set.
+        if (!msg.external_url) {
+            const externalUrl = await this.urlForSlackEvent(slackTeamId, slackRoomId, slackEventTs);
+            if (externalUrl) {
+                msg.external_url = externalUrl;
+            }
         }
 
         const matrixEvent = await this._intent.sendMessage(roomId, msg) as {event_id?: unknown};
