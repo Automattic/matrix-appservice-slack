@@ -324,6 +324,7 @@ export class SlackGhost {
     public async sendInThread(
         roomId: string,
         text: string,
+        slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
         replyEvent: IMatrixReplyEvent
@@ -345,12 +346,13 @@ export class SlackGhost {
             "format": "org.matrix.custom.html",
             "formatted_body": this.prepareFormattedBody(text),
         };
-        await this.sendMessage(roomId, content, slackRoomId, slackEventTs);
+        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendText(
         roomId: string,
         text: string,
+        slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
         extra: Record<string, unknown> = {}
@@ -370,12 +372,13 @@ export class SlackGhost {
             msgtype: "m.text",
             ...extra,
         };
-        await this.sendMessage(roomId, content, slackRoomId, slackEventTs);
+        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendMessage(
         roomId: string,
         msg: Record<string, unknown>,
+        slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string
     ): Promise<{ event_id: string }> {
@@ -435,6 +438,7 @@ export class SlackGhost {
     public async sendWithReply(
         roomId: string,
         text: string,
+        slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
         replyEvent: IMatrixReplyEvent
@@ -453,7 +457,7 @@ export class SlackGhost {
             "format": "org.matrix.custom.html",
             "formatted_body": fallbackHtml + this.prepareFormattedBody(text),
         };
-        await this.sendMessage(roomId, content, slackRoomId, slackEventTs);
+        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendTyping(roomId: string): Promise<void> {
