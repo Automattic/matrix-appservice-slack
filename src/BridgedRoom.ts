@@ -878,7 +878,7 @@ export class BridgedRoom {
                 formatted_body: `<a href="${link}">${file.name}</a>`,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, this.slackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -917,7 +917,7 @@ export class BridgedRoom {
                 formatted_body: htmlCode,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, this.slackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -952,6 +952,7 @@ export class BridgedRoom {
         await ghost.sendMessage(
             this.matrixRoomId,
             slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri),
+            this.slackTeamId,
             channelId,
             slackEventId,
         );
@@ -996,7 +997,7 @@ export class BridgedRoom {
             if (replyMEvent) {
                 replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
                 return await ghost.sendInThread(
-                    this.MatrixRoomId, message.text, this.SlackChannelId!, eventTS, replyMEvent,
+                    this.MatrixRoomId, message.text, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
                 );
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);
@@ -1005,12 +1006,12 @@ export class BridgedRoom {
 
         // If we are only handling text, send the text. File messages are handled in a seperate block.
         if (["bot_message", "file_comment", undefined].includes(subtype) && message.files === undefined) {
-            return ghost.sendText(this.matrixRoomId, message.text!, channelId, eventTS);
+            return ghost.sendText(this.matrixRoomId, message.text!, this.slackTeamId, channelId, eventTS);
         } else if (subtype === "me_message") {
             return ghost.sendMessage(this.matrixRoomId, {
                 body: message.text!,
                 msgtype: "m.emote",
-            }, channelId, eventTS);
+            }, this.slackTeamId, channelId, eventTS);
         } else if (subtype === "message_changed") {
             const previousMessage = ghost.prepareBody(substitutions.slackToMatrix(message.previous_message!.text!));
             // We use message.text here rather than the proper message.message.text
@@ -1084,7 +1085,7 @@ export class BridgedRoom {
                 msgtype: "m.text",
                 ...replyContent,
             };
-            return ghost.sendMessage(this.MatrixRoomId, matrixContent, channelId, eventTS);
+            return ghost.sendMessage(this.MatrixRoomId, matrixContent, this.slackTeamId, channelId, eventTS);
         } else if (message.files) { // A message without a subtype can contain files.
             for (const file of message.files) {
                 try {
@@ -1097,7 +1098,7 @@ export class BridgedRoom {
             //   so we just send a separate `m.image` and `m.text` message
             // See https://github.com/matrix-org/matrix-doc/issues/906
             if (message.text) {
-                return ghost.sendText(this.matrixRoomId, message.text, channelId, eventTS);
+                return ghost.sendText(this.matrixRoomId, message.text, this.slackTeamId, channelId, eventTS);
             }
         } else if (message.subtype === "group_join" && message.user) {
             /* Private rooms don't send the usual join events so we listen for these */

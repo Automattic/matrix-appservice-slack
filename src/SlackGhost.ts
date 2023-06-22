@@ -321,9 +321,16 @@ export class SlackGhost {
         return Slackdown.parse(body);
     }
 
-    public async sendInThread(roomId: string, text: string, slackRoomId: string,
-        slackEventTs: string, replyEvent: IMatrixReplyEvent): Promise<void> {
-        const content = {
+    public async sendInThread(
+        roomId: string,
+        text: string,
+        slackTeamId: string | undefined,
+        slackRoomId: string,
+        slackEventTs: string,
+        replyEvent: IMatrixReplyEvent,
+        slackThreadTs: string,
+    ): Promise<void> {
+        let msg: Record<string, unknown> = {
             "m.relates_to": {
                 "rel_type": "m.thread",
                 // If the reply event is part of a thread, continue the thread.
@@ -340,14 +347,17 @@ export class SlackGhost {
             "format": "org.matrix.custom.html",
             "formatted_body": this.prepareFormattedBody(text),
         };
-        await this.sendMessage(roomId, content, slackRoomId, slackEventTs);
+
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs, slackThreadTs);
+        await this.sendMessage(roomId, msg, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendText(
         roomId: string,
         text: string,
-        slackRoomID: string,
-        slackEventTS: string,
+        slackTeamId: string | undefined,
+        slackRoomId: string,
+        slackEventTs: string,
         extra: Record<string, unknown> = {}
     ): Promise<void> {
         // TODO: Slack's markdown is their own thing that isn't really markdown,
@@ -365,13 +375,22 @@ export class SlackGhost {
             msgtype: "m.text",
             ...extra,
         };
-        await this.sendMessage(roomId, content, slackRoomID, slackEventTS);
+
+        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
     }
 
-    public async sendMessage(roomId: string, msg: Record<string, unknown>, slackRoomId: string, slackEventTs: string): Promise<{event_id: string}> {
+    public async sendMessage(
+        roomId: string,
+        msg: Record<string, unknown>,
+        slackTeamId: string | undefined,
+        slackRoomId: string,
+        slackEventTs: string
+    ): Promise<{ event_id: string }> {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
+
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs);
         const matrixEvent = await this._intent.sendMessage(roomId, msg) as {event_id?: unknown};
 
         if (typeof matrixEvent !== 'object' || !matrixEvent || typeof matrixEvent.event_id !== 'string') {
@@ -390,8 +409,38 @@ export class SlackGhost {
         };
     }
 
-    public async sendReaction(roomId: string, eventId: string, key: string,
-        slackRoomId: string, slackEventTs: string): Promise<{event_id: string}> {
+    private async appendExternalUrlToMessage(
+        msg: Record<string, unknown>,
+        slackTeamId: string | undefined,
+        slackRoomId: string,
+        slackEventTs: string,
+        slackThreadTs?: string,
+    ): Promise<Record<string, unknown>> {
+        if (msg.external_url || !slackTeamId) {
+            return msg;
+        }
+
+        const team = await this.datastore.getTeam(slackTeamId);
+        if (!team || !team.domain) {
+            return msg;
+        }
+
+        let externalUrl = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs}`;
+        if (slackThreadTs) {
+            externalUrl = `${externalUrl}?thread_ts=${slackThreadTs}`;
+        }
+
+        msg.external_url = externalUrl;
+        return msg;
+    }
+
+    public async sendReaction(
+        roomId: string,
+        eventId: string,
+        key: string,
+        slackRoomId: string,
+        slackEventTs: string
+    ): Promise<{event_id: string}> {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
@@ -417,8 +466,14 @@ export class SlackGhost {
         };
     }
 
-    public async sendWithReply(roomId: string, text: string, slackRoomId: string,
-        slackEventTs: string, replyEvent: IMatrixReplyEvent): Promise<void> {
+    public async sendWithReply(
+        roomId: string,
+        text: string,
+        slackTeamId: string | undefined,
+        slackRoomId: string,
+        slackEventTs: string,
+        replyEvent: IMatrixReplyEvent
+    ): Promise<void> {
         const fallbackHtml = this.getFallbackHtml(roomId, replyEvent);
         const fallbackText = this.getFallbackText(replyEvent);
 
@@ -433,7 +488,7 @@ export class SlackGhost {
             "format": "org.matrix.custom.html",
             "formatted_body": fallbackHtml + this.prepareFormattedBody(text),
         };
-        await this.sendMessage(roomId, content, slackRoomId, slackEventTs);
+        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendTyping(roomId: string): Promise<void> {
