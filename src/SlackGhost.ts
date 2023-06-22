@@ -351,8 +351,8 @@ export class SlackGhost {
     public async sendText(
         roomId: string,
         text: string,
-        slackRoomID: string,
-        slackEventTS: string,
+        slackRoomId: string,
+        slackEventTs: string,
         extra: Record<string, unknown> = {}
     ): Promise<void> {
         // TODO: Slack's markdown is their own thing that isn't really markdown,
@@ -370,7 +370,7 @@ export class SlackGhost {
             msgtype: "m.text",
             ...extra,
         };
-        await this.sendMessage(roomId, content, slackRoomID, slackEventTS);
+        await this.sendMessage(roomId, content, slackRoomId, slackEventTs);
     }
 
     public async sendMessage(
