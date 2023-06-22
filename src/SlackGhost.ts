@@ -385,6 +385,12 @@ export class SlackGhost {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
+
+        const externalUrl = await this.urlForSlackEvent(slackTeamId, slackRoomId, slackEventTs);
+        if (externalUrl) {
+            msg.external_url = externalUrl;
+        }
+
         const matrixEvent = await this._intent.sendMessage(roomId, msg) as {event_id?: unknown};
 
         if (typeof matrixEvent !== 'object' || !matrixEvent || typeof matrixEvent.event_id !== 'string') {
@@ -401,6 +407,19 @@ export class SlackGhost {
         return {
             event_id: matrixEvent.event_id,
         };
+    }
+
+    private async urlForSlackEvent(slackTeamId: string | undefined, slackRoomId: string, slackEventTs: string): Promise<string | undefined> {
+        if (!slackTeamId) {
+            return;
+        }
+
+        const team = await this.datastore.getTeam(slackTeamId);
+        if (!team || !team.domain) {
+            return;
+        }
+
+        return `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs}`;
     }
 
     public async sendReaction(
