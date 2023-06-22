@@ -414,7 +414,11 @@ export class SlackGhost {
         };
     }
 
-    private async urlForSlackEvent(slackTeamId: string | undefined, slackRoomId: string, slackEventTs: string): Promise<string | undefined> {
+    private async urlForSlackEvent(
+        slackTeamId: string | undefined,
+        slackRoomId: string,
+        slackEventTs: string
+    ): Promise<string | undefined> {
         if (!slackTeamId) {
             return;
         }
