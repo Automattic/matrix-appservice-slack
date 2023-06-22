@@ -743,7 +743,6 @@ export class Main {
         // Do not post echoes back to Slack.
         const existingEvent = await this.datastore.getEventByMatrixId(ev.room_id, ev.event_id);
         if (existingEvent) {
-            log.debug("Ignoring existing event", ev.event_id, ev.room_id);
             endTimer({outcome: "dropped"});
             return;
         }
