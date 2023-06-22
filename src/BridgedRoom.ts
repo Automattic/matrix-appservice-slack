@@ -997,7 +997,7 @@ export class BridgedRoom {
             if (replyMEvent) {
                 replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
                 return await ghost.sendInThread(
-                    this.MatrixRoomId, message.text, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent,
+                    this.MatrixRoomId, message.text, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
                 );
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);

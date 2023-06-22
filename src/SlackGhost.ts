@@ -327,9 +327,10 @@ export class SlackGhost {
         slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
-        replyEvent: IMatrixReplyEvent
+        replyEvent: IMatrixReplyEvent,
+        slackThreadTs: string,
     ): Promise<void> {
-        const content = {
+        let msg: Record<string, unknown> = {
             "m.relates_to": {
                 "rel_type": "m.thread",
                 // If the reply event is part of a thread, continue the thread.
@@ -346,7 +347,9 @@ export class SlackGhost {
             "format": "org.matrix.custom.html",
             "formatted_body": this.prepareFormattedBody(text),
         };
-        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
+
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs, slackThreadTs);
+        await this.sendMessage(roomId, msg, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendText(
@@ -411,6 +414,7 @@ export class SlackGhost {
         slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
+        slackThreadTs?: string,
     ): Promise<Record<string, unknown>> {
         if (msg.external_url || !slackTeamId) {
             return msg;
@@ -421,7 +425,12 @@ export class SlackGhost {
             return msg;
         }
 
-        msg.external_url = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs}`;
+        let externalUrl = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs}`;
+        if (slackThreadTs) {
+            externalUrl = `${externalUrl}?thread_ts=${slackThreadTs}`;
+        }
+
+        msg.external_url = externalUrl;
         return msg;
     }
 
