@@ -177,6 +177,7 @@ export class AdminCommands {
                     body: fileName,
                     info: {
                         mimetype: "text/csv",
+                        size: Buffer.byteLength(content, 'utf8'),
                     },
                     msgtype: "m.file",
                     url: contentUri,
