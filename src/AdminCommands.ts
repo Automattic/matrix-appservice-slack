@@ -140,6 +140,11 @@ export class AdminCommands {
                 respond: ResponseCallback,
                 team?: string,
             }) => {
+                if (!this.main.config.matrix_admin_room) {
+                    respond("matrix_admin_room must be set in the bridge config");
+                    return;
+                }
+
                 const quotemeta = (s: string) => s.replace(/\W/g, "\\$&");
                 let nameFilter: RegExp;
 
@@ -160,11 +165,6 @@ export class AdminCommands {
 
                 if (fileContent === "") {
                     respond("No rooms found");
-                    return;
-                }
-
-                if (!this.main.config.matrix_admin_room) {
-                    respond("matrix_admin_room is not set in the bridge config");
                     return;
                 }
 
