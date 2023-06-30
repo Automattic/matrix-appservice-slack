@@ -151,11 +151,10 @@ export class AdminCommands {
                     return;
                 }
 
-                const quotemeta = (s: string) => s.replace(/\W/g, "\\$&");
                 let nameFilter: RegExp;
-
                 if (team) {
-                    nameFilter = new RegExp(`^${quotemeta(team)}\\.#`);
+                    const quoteMeta = (s: string) => s.replace(/\W/g, "\\$&");
+                    nameFilter = new RegExp(`^${quoteMeta(team)}\\.#`);
                 }
 
                 let fileContent = "";
