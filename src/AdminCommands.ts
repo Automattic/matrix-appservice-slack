@@ -36,6 +36,7 @@ export class AdminCommands {
         this.commands = [
             this.onUnmatched,
             this.list,
+            this.export,
             this.show,
             this.link,
             this.unlink,
@@ -126,6 +127,69 @@ export class AdminCommands {
                 team: {
                     alias: "T",
                     description: "Filter only rooms for this Slack team domain",
+                },
+            },
+        );
+    }
+
+    public get export(): AdminCommand {
+        return new AdminCommand(
+            "export",
+            "export the list of linked rooms and their corresponding Slack channel id, as a CSV file",
+            async ({respond, file_name, team}: {
+                respond: ResponseCallback,
+                file_name?: string,
+                team?: string,
+            }) => {
+                const fileName = file_name ? `${file_name}.csv` : "bridge_mapping.csv";
+
+                if (!this.main.config.matrix_admin_room) {
+                    respond("matrix_admin_room must be set in the bridge config");
+                    return;
+                }
+
+                let rooms = this.main.rooms.all;
+                if (rooms.length === 0) {
+                    respond("No rooms found");
+                    return;
+                }
+
+                let nameFilter: RegExp;
+                if (team) {
+                    const quoteMeta = (s: string) => s.replace(/\W/g, "\\$&");
+                    nameFilter = new RegExp(`^${quoteMeta(team)}\\.#`);
+                }
+
+                rooms = rooms.filter(room => {
+                    if (!room.SlackChannelName || !nameFilter) {
+                        return true;
+                    }
+                    return !nameFilter.test(room.SlackChannelName);
+                });
+
+                let content = "slack_channel_id, matrix_room_id";
+                rooms.forEach((r) => {
+                    content += `\n"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
+                });
+
+                const contentUri = await this.main.botIntent.uploadContent(content, {name: fileName});
+                await this.main.botIntent.sendEvent(this.main.config.matrix_admin_room, "m.room.message", {
+                    body: fileName,
+                    info: {
+                        mimetype: "text/csv",
+                    },
+                    msgtype: "m.file",
+                    url: contentUri,
+                });
+            },
+            {
+                file_name: {
+                    alias: "F",
+                    description: "Name of the CSV file (optional)",
+                },
+                team: {
+                    alias: "T",
+                    description: "Filter only rooms for this Slack team domain (optional)",
                 },
             },
         );
