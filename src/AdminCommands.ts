@@ -164,7 +164,7 @@ export class AdminCommands {
                     return !nameFilter.test(room.SlackChannelName);
                 });
 
-                let content = "slack_channel_id, bridged_matrix_room_id";
+                let content = "slack_channel_id, matrix_room_id";
                 rooms.forEach((r) => {
                     content += `\n"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
                 });
