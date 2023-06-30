@@ -164,14 +164,13 @@ export class AdminCommands {
                     return !nameFilter.test(room.SlackChannelName);
                 });
 
-                let fileContent = "";
+                let content = "slack_channel_id, bridged_matrix_room_id";
                 rooms.forEach((r) => {
-                    fileContent += `"${r.SlackChannelId}", "${r.MatrixRoomId}"\n`;
+                    content += `\n"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
                 });
 
                 const filename = "bridge_mapping.csv";
-                fileContent = `slack_channel_id, bridged_matrix_room_id\n${fileContent}`;
-                const contentUri = await this.main.botIntent.uploadContent(fileContent, {name: filename});
+                const contentUri = await this.main.botIntent.uploadContent(content, {name: filename});
 
                 await this.main.botIntent.sendEvent(this.main.config.matrix_admin_room, "m.room.message", {
                     body: filename,
