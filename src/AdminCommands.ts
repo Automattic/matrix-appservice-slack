@@ -145,7 +145,7 @@ export class AdminCommands {
                     return;
                 }
 
-                const rooms = this.main.rooms.all;
+                let rooms = this.main.rooms.all;
                 if (rooms.length === 0) {
                     respond("No rooms found");
                     return;
@@ -157,12 +157,15 @@ export class AdminCommands {
                     nameFilter = new RegExp(`^${quoteMeta(team)}\\.#`);
                 }
 
+                rooms = rooms.filter(room => {
+                    if (!room.SlackChannelName || !nameFilter) {
+                        return true;
+                    }
+                    return !nameFilter.test(room.SlackChannelName);
+                });
+
                 let fileContent = "";
                 rooms.forEach((r) => {
-                    if (r.SlackChannelName && nameFilter && !nameFilter.test(r.SlackChannelName)) {
-                        return;
-                    }
-
                     fileContent += `"${r.SlackChannelId}", "${r.MatrixRoomId}"\n`;
                 });
 
