@@ -145,6 +145,12 @@ export class AdminCommands {
                     return;
                 }
 
+                const rooms = this.main.rooms.all;
+                if (rooms.length === 0) {
+                    respond("No rooms found");
+                    return;
+                }
+
                 const quotemeta = (s: string) => s.replace(/\W/g, "\\$&");
                 let nameFilter: RegExp;
 
@@ -153,20 +159,14 @@ export class AdminCommands {
                 }
 
                 let fileContent = "";
-                this.main.rooms.all.forEach((r) => {
+                rooms.forEach((r) => {
                     const channelName = r.SlackChannelName || "UNKNOWN";
-
                     if (nameFilter && !nameFilter.test(channelName)) {
                         return;
                     }
 
                     fileContent += `"${r.SlackChannelId}", "${r.MatrixRoomId}"\n`;
                 });
-
-                if (fileContent === "") {
-                    respond("No rooms found");
-                    return;
-                }
 
                 const filename = "bridge_mapping.csv";
                 fileContent = `slack_channel_id, bridged_matrix_room_id\n${fileContent}`;
