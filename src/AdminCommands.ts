@@ -140,6 +140,8 @@ export class AdminCommands {
                 respond: ResponseCallback,
                 team?: string,
             }) => {
+                const filename = "bridge_mapping.csv";
+
                 if (!this.main.config.matrix_admin_room) {
                     respond("matrix_admin_room must be set in the bridge config");
                     return;
@@ -169,9 +171,7 @@ export class AdminCommands {
                     content += `\n"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
                 });
 
-                const filename = "bridge_mapping.csv";
                 const contentUri = await this.main.botIntent.uploadContent(content, {name: filename});
-
                 await this.main.botIntent.sendEvent(this.main.config.matrix_admin_room, "m.room.message", {
                     body: filename,
                     info: {
