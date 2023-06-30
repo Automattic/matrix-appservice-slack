@@ -159,8 +159,7 @@ export class AdminCommands {
 
                 let fileContent = "";
                 rooms.forEach((r) => {
-                    const channelName = r.SlackChannelName || "UNKNOWN";
-                    if (nameFilter && !nameFilter.test(channelName)) {
+                    if (r.SlackChannelName && nameFilter && !nameFilter.test(r.SlackChannelName)) {
                         return;
                     }
 
