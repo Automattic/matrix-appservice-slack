@@ -135,12 +135,13 @@ export class AdminCommands {
     public get export(): AdminCommand {
         return new AdminCommand(
             "export",
-            "export the list of linked rooms as CSV",
-            async ({respond, team}: {
+            "export the list of linked rooms and their corresponding Slack channel id, as a CSV file",
+            async ({respond, file_name, team}: {
                 respond: ResponseCallback,
+                file_name?: string,
                 team?: string,
             }) => {
-                const filename = "bridge_mapping.csv";
+                const fileName = file_name ? `${file_name}.csv` : "bridge_mapping.csv";
 
                 if (!this.main.config.matrix_admin_room) {
                     respond("matrix_admin_room must be set in the bridge config");
@@ -171,9 +172,9 @@ export class AdminCommands {
                     content += `\n"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
                 });
 
-                const contentUri = await this.main.botIntent.uploadContent(content, {name: filename});
+                const contentUri = await this.main.botIntent.uploadContent(content, {name: fileName});
                 await this.main.botIntent.sendEvent(this.main.config.matrix_admin_room, "m.room.message", {
-                    body: filename,
+                    body: fileName,
                     info: {
                         mimetype: "text/csv",
                     },
@@ -182,9 +183,13 @@ export class AdminCommands {
                 });
             },
             {
+                file_name: {
+                    alias: "F",
+                    description: "Name of the CSV file (optional)",
+                },
                 team: {
                     alias: "T",
-                    description: "Filter only rooms for this Slack team domain",
+                    description: "Filter only rooms for this Slack team domain (optional)",
                 },
             },
         );
