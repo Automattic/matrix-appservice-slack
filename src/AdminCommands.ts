@@ -167,9 +167,10 @@ export class AdminCommands {
                     return !nameFilter.test(room.SlackChannelName);
                 });
 
-                let content = "slack_channel_id, matrix_room_id";
+                let content = Buffer.from("slack_channel_id, matrix_room_id");
                 rooms.forEach((r) => {
-                    content += `\n"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
+                    const line = `"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
+                    content = Buffer.concat([content, Buffer.from(`\n${line}`)]);
                 });
 
                 const contentUri = await this.main.botIntent.uploadContent(content, {name: fileName});
@@ -177,7 +178,7 @@ export class AdminCommands {
                     body: fileName,
                     info: {
                         mimetype: "text/csv",
-                        size: Buffer.byteLength(content, 'utf8'),
+                        size: Buffer.byteLength(content, "utf-8"),
                     },
                     msgtype: "m.file",
                     url: contentUri,
