@@ -176,6 +176,7 @@ export class AdminCommands {
                 const contentUri = await this.main.botIntent.uploadContent(content, {name: fileName});
                 await this.main.botIntent.sendEvent(this.main.config.matrix_admin_room, "m.room.message", {
                     body: fileName,
+                    filename: fileName,
                     info: {
                         mimetype: "text/csv",
                         size: Buffer.byteLength(content, "utf-8"),
