@@ -173,16 +173,20 @@ export class AdminCommands {
                     content = Buffer.concat([content, Buffer.from(`\n${line}`)]);
                 });
 
-                const contentUri = await this.main.botIntent.uploadContent(content, {name: fileName});
+                const contentType = "text/csv";
+                const contentUrl = await this.main.botIntent.uploadContent(content, {
+                    name: fileName,
+                    type: contentType,
+                });
                 await this.main.botIntent.sendEvent(this.main.config.matrix_admin_room, "m.room.message", {
                     body: fileName,
                     filename: fileName,
                     info: {
-                        mimetype: "text/csv",
+                        mimetype: contentType,
                         size: Buffer.byteLength(content, "utf-8"),
                     },
                     msgtype: "m.file",
-                    url: contentUri,
+                    url: contentUrl,
                 });
             },
             {
