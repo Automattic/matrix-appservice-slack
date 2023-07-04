@@ -425,9 +425,9 @@ export class SlackGhost {
             return msg;
         }
 
-        let externalUrl = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs}`;
+        let externalUrl = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs.replace(".", "")}`;
         if (slackThreadTs) {
-            externalUrl = `${externalUrl}?thread_ts=${slackThreadTs}`;
+            externalUrl = `${externalUrl}?thread_ts=${slackThreadTs.replace(".", "")}`;
         }
 
         msg.external_url = externalUrl;
