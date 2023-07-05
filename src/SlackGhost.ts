@@ -169,27 +169,39 @@ export class SlackGhost {
 
     private async updateDisplayname(message: {username?: string, user_name?: string, bot_id?: string, user_id?: string},
         client?: WebClient): Promise<boolean> {
-        let displayName = message.username || message.user_name;
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
 
+        let changed;
+        const matrixProfile = await this.intent.getProfileInfo(this.matrixUserId);
+        const hasDisplayName = !!matrixProfile.displayname && matrixProfile.displayname !== "";
+
+        // If matrix user already has a display name, we don't want to overwrite it with slack's display name.
+        if (hasDisplayName) {
+            changed = this.displayname !== matrixProfile.displayname;
+            this.displayname = matrixProfile.displayname;
+            await this.datastore.upsertUser(this);
+            return changed;
+        }
+
+        let slackDisplayName = message.username || message.user_name;
         if (client) { // We can be smarter if we have the bot.
             if (message.bot_id && message.user_id) {
                 // In the case of operations on bots, we will have both a bot_id and a user_id.
                 // Ignore updating the displayname in this case.
                 return false;
             } else if (message.bot_id) {
-                displayName = await this.getBotName(message.bot_id, client);
+                slackDisplayName = await this.getBotName(message.bot_id, client);
             } else if (message.user_id) {
-                displayName = await this.getDisplayname(client);
+                slackDisplayName = await this.getDisplayname(client);
             }
         }
 
-        const changed = this.displayname !== displayName;
-        log.debug(`Ensuring displayname ${displayName} for ${this.slackId}`);
-        await this._intent.ensureProfile(displayName);
-        this.displayname = displayName;
+        changed = this.displayname !== slackDisplayName;
+        log.debug(`Ensuring displayname ${slackDisplayName} for ${this.slackId}`);
+        await this._intent.ensureProfile(slackDisplayName);
+        this.displayname = slackDisplayName;
         await this.datastore.upsertUser(this);
         return changed;
     }
@@ -264,6 +276,18 @@ export class SlackGhost {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
+
+        const matrixProfile = await this.intent.getProfileInfo(this.matrixUserId);
+        const hasAvatar = !!matrixProfile.avatar_url && matrixProfile.avatar_url !== "";
+
+        // If matrix user already has an avatar, we don't want to overwrite it with slack's avatar.
+        if (hasAvatar) {
+            const changed = this.avatarHash !== matrixProfile.avatar_url;
+            this.avatarHash = matrixProfile.avatar_url;
+            await this.datastore.upsertUser(this);
+            return changed;
+        }
+
         let avatarUrl: string|undefined;
         let hash: string|undefined;
         if (message.bot_id && message.user_id) {
