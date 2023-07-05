@@ -169,21 +169,8 @@ export class SlackGhost {
 
     private async updateDisplayname(message: {username?: string, user_name?: string, bot_id?: string, user_id?: string},
         client?: WebClient): Promise<boolean> {
-        let slackDisplayName = message.username || message.user_name;
         if (!this._intent) {
             throw Error('No intent associated with ghost');
-        }
-
-        if (client) { // We can be smarter if we have the bot.
-            if (message.bot_id && message.user_id) {
-                // In the case of operations on bots, we will have both a bot_id and a user_id.
-                // Ignore updating the displayname in this case.
-                return false;
-            } else if (message.bot_id) {
-                slackDisplayName = await this.getBotName(message.bot_id, client);
-            } else if (message.user_id) {
-                slackDisplayName = await this.getDisplayname(client);
-            }
         }
 
         let changed;
@@ -196,6 +183,19 @@ export class SlackGhost {
             this.displayname = matrixProfile.displayname;
             await this.datastore.upsertUser(this);
             return changed;
+        }
+
+        let slackDisplayName = message.username || message.user_name;
+        if (client) { // We can be smarter if we have the bot.
+            if (message.bot_id && message.user_id) {
+                // In the case of operations on bots, we will have both a bot_id and a user_id.
+                // Ignore updating the displayname in this case.
+                return false;
+            } else if (message.bot_id) {
+                slackDisplayName = await this.getBotName(message.bot_id, client);
+            } else if (message.user_id) {
+                slackDisplayName = await this.getDisplayname(client);
+            }
         }
 
         changed = this.displayname !== slackDisplayName;
