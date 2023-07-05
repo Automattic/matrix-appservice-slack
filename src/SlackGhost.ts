@@ -169,7 +169,7 @@ export class SlackGhost {
 
     private async updateDisplayname(message: {username?: string, user_name?: string, bot_id?: string, user_id?: string},
         client?: WebClient): Promise<boolean> {
-        let displayName = message.username || message.user_name;
+        let slackDisplayName = message.username || message.user_name;
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
@@ -180,16 +180,16 @@ export class SlackGhost {
                 // Ignore updating the displayname in this case.
                 return false;
             } else if (message.bot_id) {
-                displayName = await this.getBotName(message.bot_id, client);
+                slackDisplayName = await this.getBotName(message.bot_id, client);
             } else if (message.user_id) {
-                displayName = await this.getDisplayname(client);
+                slackDisplayName = await this.getDisplayname(client);
             }
         }
 
-        const changed = this.displayname !== displayName;
-        log.debug(`Ensuring displayname ${displayName} for ${this.slackId}`);
-        await this._intent.ensureProfile(displayName);
-        this.displayname = displayName;
+        const changed = this.displayname !== slackDisplayName;
+        log.debug(`Ensuring displayname ${slackDisplayName} for ${this.slackId}`);
+        await this._intent.ensureProfile(slackDisplayName);
+        this.displayname = slackDisplayName;
         await this.datastore.upsertUser(this);
         return changed;
     }
