@@ -186,7 +186,19 @@ export class SlackGhost {
             }
         }
 
-        const changed = this.displayname !== slackDisplayName;
+        let changed;
+        const matrixProfile = await this.intent.getProfileInfo(this.matrixUserId);
+        const hasDisplayName = matrixProfile.displayname && matrixProfile.displayname !== "";
+
+        // If matrix user already has a display name, we don't want to overwrite it with slack's display name.
+        if (hasDisplayName) {
+            changed = this.displayname !== matrixProfile.displayname;
+            this.displayname = matrixProfile.displayname;
+            await this.datastore.upsertUser(this);
+            return changed;
+        }
+
+        changed = this.displayname !== slackDisplayName;
         log.debug(`Ensuring displayname ${slackDisplayName} for ${this.slackId}`);
         await this._intent.ensureProfile(slackDisplayName);
         this.displayname = slackDisplayName;
