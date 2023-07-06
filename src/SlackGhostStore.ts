@@ -19,7 +19,7 @@ export class SlackGhostStore {
         private datastore: Datastore,
         private config: IConfig,
         private bridge: Bridge,
-        private matrixUsernameStore: MatrixUsernameStore,
+        private matrixUsernameStore?: MatrixUsernameStore,
     ) {
         // XXX: Use cache value from config.
         this.ghostsByUserId = new QuickLRU({ maxSize: 50 });
@@ -64,7 +64,7 @@ export class SlackGhostStore {
     public async getUserId(id: string, teamDomain: string): Promise<string> {
         let localpart;
 
-        if (this.matrixUsernameStore.hasMappingForTeam(teamDomain)) {
+        if (this.matrixUsernameStore?.hasMappingForTeam(teamDomain)) {
             const matrixUsername = await this.matrixUsernameStore.getBySlackUserId(id);
             if (matrixUsername) {
                 log.info(`Found matrix username for ${id}:`, matrixUsername);

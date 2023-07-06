@@ -1114,7 +1114,10 @@ export class Main {
             throw Error("Unknown engine for database. Please use 'postgres' or 'nedb");
         }
 
-        this.matrixUsernameStore = new MatrixUsernameStore(this.datastore, this.config);
+        if (this.config.matrix_username_store?.enabled) {
+            this.matrixUsernameStore = new MatrixUsernameStore(this.datastore, this.config);
+        }
+
         this.ghosts = new SlackGhostStore(this.rooms, this.datastore, this.config, this.bridge, this.matrixUsernameStore);
 
         this.clientfactory = new SlackClientFactory(this.datastore, this.config, (method: string) => {

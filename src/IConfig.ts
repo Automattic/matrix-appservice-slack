@@ -108,5 +108,9 @@ export interface IConfig {
         enabled: boolean;
         onboard_users?: boolean;
         direct_messages?: AllowDenyConfig;
-    }
+    };
+
+    matrix_username_store?: {
+        enabled: boolean;
+    };
 }
