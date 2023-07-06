@@ -1,6 +1,6 @@
 import {Datastore} from "./datastore/Models";
 import {IConfig} from "./IConfig";
-import axios, {AxiosInstance} from "axios";
+import axios from "axios";
 import {Logger} from "matrix-appservice-bridge";
 
 type MatrixUsername = string;
@@ -10,6 +10,7 @@ const log = new Logger("MatrixUsernameStore");
 export class MatrixUsernameStore {
     private readonly teamDomains: string[];
     private readonly url: URL;
+    private readonly cache = new Map<string, string>();
 
     constructor(
         private datastore: Datastore,
@@ -36,19 +37,28 @@ export class MatrixUsernameStore {
     }
 
     async getBySlackUserId(slackUserId: string): Promise<MatrixUsername | null> {
-        const username = await this.datastore.getMatrixUsername(slackUserId);
+        let username = this.cache.get(slackUserId) ?? null;
         if (username) {
+            log.debug(`Retrieved matrix username from cache: ${username}`);
             return username;
         }
 
-        log.debug(`Retrieving matrix username for ${slackUserId} from remote store`);
-        const remoteUsername = await this.getFromRemote(slackUserId);
-        if (!remoteUsername) {
+        username = await this.datastore.getMatrixUsername(slackUserId);
+        if (username) {
+            log.debug(`Retrieved matrix username from database: ${username}`);
+            this.cache.set(slackUserId, username);
+            return username;
+        }
+
+        username = await this.getFromRemote(slackUserId);
+        if (!username) {
             return null;
         }
 
-        await this.datastore.setMatrixUsername(slackUserId, remoteUsername);
-        return remoteUsername;
+        log.debug(`Retrieved matrix username from remote store: ${username}`);
+        await this.datastore.setMatrixUsername(slackUserId, username);
+        this.cache.set(slackUserId, username);
+        return username;
     }
 
     private async getFromRemote(slackUserId: string): Promise<MatrixUsername | null> {
