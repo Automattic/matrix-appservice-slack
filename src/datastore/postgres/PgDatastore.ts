@@ -64,7 +64,7 @@ export interface SchemaRunUserMessage {
 type SchemaRunFn = (db: IDatabase<unknown>) => Promise<void|{userMessages: SchemaRunUserMessage[]}>;
 
 export class PgDatastore implements Datastore, ClientEncryptionStore, ProvisioningStore {
-    public static readonly LATEST_SCHEMA = 161;
+    public static readonly LATEST_SCHEMA = 17;
     public readonly postgresDb: IDatabase<any>;
 
     constructor(connectionString: string) {
@@ -281,14 +281,7 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
         const userMessages: SchemaRunUserMessage[] = [];
         let currentVersion = await this.getSchemaVersion();
         while (currentVersion < PgDatastore.LATEST_SCHEMA) {
-            let newVersion = currentVersion + 1;
-            if (currentVersion === 16 && PgDatastore.LATEST_SCHEMA === 161) {
-                newVersion = 161;
-            }
-            if (currentVersion === 161) {
-                newVersion = 17;
-            }
-
+            const newVersion = currentVersion + 1;
             const newSchema = `./schema/v${newVersion}`;
             log.info(`Updating schema to v${newVersion}`);
             // eslint-disable-next-line @typescript-eslint/no-var-requires
