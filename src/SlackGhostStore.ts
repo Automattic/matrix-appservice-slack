@@ -56,10 +56,8 @@ export class SlackGhostStore {
 
     public async getUserId(id: string, teamDomain: string): Promise<string> {
         if (["wordpress", "orbit-sandbox"].includes(teamDomain)) {
-            const wporgUsername = await this.datastore.getMatrixUsername(id);
-            if (wporgUsername) {
-                let matrixUsername = wporgUsername;
-
+            let matrixUsername = await this.datastore.getMatrixUsername(id);
+            if (matrixUsername) {
                 // When a user is created through SSO, synapse replaces a leading _ with =5f,
                 // so we need to do the same here.
                 if (matrixUsername.startsWith("_")) {
@@ -67,10 +65,10 @@ export class SlackGhostStore {
                 }
 
                 matrixUsername = `@${matrixUsername}:${this.config.homeserver.server_name}`;
-                log.info("Found wporg username:", wporgUsername, id, matrixUsername);
+                log.info("Found matrix username:", matrixUsername, id, matrixUsername);
                 return matrixUsername;
             } else {
-                log.info("Could not find wporg username for", id);
+                log.info("Could not find matrix username for", id);
             }
         }
 
