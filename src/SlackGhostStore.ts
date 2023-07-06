@@ -58,12 +58,6 @@ export class SlackGhostStore {
         if (["wordpress", "orbit-sandbox"].includes(teamDomain)) {
             let matrixUsername = await this.datastore.getMatrixUsername(id);
             if (matrixUsername) {
-                // When a user is created through SSO, synapse replaces a leading _ with =5f,
-                // so we need to do the same here.
-                if (matrixUsername.startsWith("_")) {
-                    matrixUsername = `=5f${matrixUsername.slice(1)}`;
-                }
-
                 matrixUsername = `@${matrixUsername}:${this.config.homeserver.server_name}`;
                 log.info("Found matrix username:", matrixUsername, id, matrixUsername);
                 return matrixUsername;
