@@ -64,7 +64,7 @@ export interface SchemaRunUserMessage {
 type SchemaRunFn = (db: IDatabase<unknown>) => Promise<void|{userMessages: SchemaRunUserMessage[]}>;
 
 export class PgDatastore implements Datastore, ClientEncryptionStore, ProvisioningStore {
-    public static readonly LATEST_SCHEMA = 17;
+    public static readonly LATEST_SCHEMA = 18;
     public readonly postgresDb: IDatabase<any>;
 
     constructor(connectionString: string) {
