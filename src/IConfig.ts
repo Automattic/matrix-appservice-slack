@@ -113,5 +113,7 @@ export interface IConfig {
     matrix_username_store?: {
         enabled: boolean;
         team_domains: string[];
+        url: string;
+        secret: string;
     };
 }

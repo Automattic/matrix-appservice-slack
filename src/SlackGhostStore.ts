@@ -65,7 +65,7 @@ export class SlackGhostStore {
         let localpart;
 
         if (this.matrixUsernameStore?.hasMappingForTeam(teamDomain)) {
-            const matrixUsername = await this.matrixUsernameStore.getBySlackUserId(id);
+            const matrixUsername = await this.matrixUsernameStore?.getBySlackUserId(id);
             if (matrixUsername) {
                 log.info(`Found matrix username for ${id}:`, matrixUsername);
                 localpart = matrixUsername;
