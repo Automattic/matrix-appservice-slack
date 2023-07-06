@@ -10,7 +10,11 @@ export class MatrixUsernameStore {
         private datastore: Datastore,
         private config: IConfig,
     ) {
-        this.teamDomains = config.matrix_username_store?.team_domains ?? [];
+        if (!config.matrix_username_store) {
+            throw Error("matrix_username_store is not correctly configured");
+        }
+
+        this.teamDomains = config.matrix_username_store.team_domains;
     }
 
     hasMappingForTeam(teamDomain: string): boolean {
