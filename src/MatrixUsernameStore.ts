@@ -41,8 +41,14 @@ export class MatrixUsernameStore {
             return username;
         }
 
-        // Not found locally, fetch from remote store.
-        return await this.getFromRemote(slackUserId);
+        log.debug(`Retrieving matrix username for ${slackUserId} from remote store`);
+        const remoteUsername = await this.getFromRemote(slackUserId);
+        if (!remoteUsername) {
+            return null;
+        }
+
+        await this.datastore.setMatrixUsername(slackUserId, remoteUsername);
+        return remoteUsername;
     }
 
     private async getFromRemote(slackUserId: string): Promise<MatrixUsername | null> {

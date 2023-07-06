@@ -101,7 +101,9 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
 
     public async setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null> {
         return this.postgresDb.none(
-            "INSERT INTO wporg_users (wporg_id, slack_id) VALUES (${matrixUsername}, ${slackUserId})", {
+            "INSERT INTO wporg_users (wporg_id, slack_id) VALUES (${matrixUsername}, ${slackUserId})" +
+            "ON CONFLICT DO NOTHING",
+            {
                 matrixUsername,
                 slackUserId,
             }
