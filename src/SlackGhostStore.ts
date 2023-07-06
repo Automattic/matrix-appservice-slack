@@ -56,7 +56,7 @@ export class SlackGhostStore {
 
     public async getUserId(id: string, teamDomain: string): Promise<string> {
         if (["wordpress", "orbit-sandbox"].includes(teamDomain)) {
-            const wporgUsername = await this.datastore.getWporgUsername(id);
+            const wporgUsername = await this.datastore.getMatrixUsername(id);
             if (wporgUsername) {
                 let matrixUsername = wporgUsername;
 
