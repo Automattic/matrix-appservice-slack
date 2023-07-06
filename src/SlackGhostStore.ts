@@ -62,18 +62,22 @@ export class SlackGhostStore {
     }
 
     public async getUserId(id: string, teamDomain: string): Promise<string> {
+        let localpart;
+
         if (["wordpress", "orbit-sandbox"].includes(teamDomain)) {
-            let matrixUsername = await this.datastore.getMatrixUsername(id);
+            const matrixUsername = await this.matrixUsernameStore.getBySlackUserId(id);
             if (matrixUsername) {
-                matrixUsername = `@${matrixUsername}:${this.config.homeserver.server_name}`;
                 log.info("Found matrix username:", matrixUsername, id, matrixUsername);
-                return matrixUsername;
+                localpart = matrixUsername;
             } else {
                 log.info("Could not find matrix username for", id);
             }
         }
 
-        const localpart = `${this.config.username_prefix}${teamDomain.toLowerCase()}_${id.toUpperCase()}`;
+        if (!localpart) {
+            localpart = `${this.config.username_prefix}${teamDomain.toLowerCase()}_${id.toUpperCase()}`;
+        }
+
         return `@${localpart}:${this.config.homeserver.server_name}`;
     }
 

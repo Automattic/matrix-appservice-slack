@@ -11,11 +11,6 @@ export class MatrixUsernameStore {
     }
 
     async getBySlackUserId(slackUserId: string): Promise<MatrixUsername | null> {
-        const username = await this.datastore.getMatrixUsername(slackUserId);
-        if (!username) {
-            return null;
-        }
-
-        return `@${username}:${this.config.homeserver.server_name}`;
+        return await this.datastore.getMatrixUsername(slackUserId);
     }
 }
