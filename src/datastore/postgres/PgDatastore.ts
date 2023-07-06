@@ -99,6 +99,15 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
         return dbEntry ? dbEntry.wporg_id : null;
     }
 
+    public async setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null> {
+        return this.postgresDb.none(
+            "INSERT INTO wporg_users (wporg_id, slack_id) VALUES (${matrixUsername}, ${slackUserId})", {
+                matrixUsername,
+                slackUserId,
+            }
+        );
+    }
+
     public async getAllUsersForTeam(teamId: string): Promise<UserEntry[]> {
         const users = await this.postgresDb.manyOrNone("SELECT json FROM users WHERE json::json->>'team_id' = ${teamId}", {
             teamId,

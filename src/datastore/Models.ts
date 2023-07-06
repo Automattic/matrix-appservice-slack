@@ -97,6 +97,7 @@ export interface Datastore extends ProvisioningStore {
     getUser(id: string): Promise<UserEntry|null>;
     getMatrixUser(userId: string): Promise<MatrixUser|null>;
     getMatrixUsername(slackUserId: string): Promise<string|null>;
+    setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null>;
     storeMatrixUser(user: MatrixUser): Promise<null>;
     getAllUsersForTeam(teamId: string): Promise<UserEntry[]>;
 
