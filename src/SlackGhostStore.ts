@@ -64,13 +64,13 @@ export class SlackGhostStore {
     public async getUserId(id: string, teamDomain: string): Promise<string> {
         let localpart;
 
-        if (["wordpress", "orbit-sandbox"].includes(teamDomain)) {
+        if (this.matrixUsernameStore.hasMappingForTeam(teamDomain)) {
             const matrixUsername = await this.matrixUsernameStore.getBySlackUserId(id);
             if (matrixUsername) {
-                log.info("Found matrix username:", matrixUsername, id, matrixUsername);
+                log.info(`Found matrix username for ${id}:`, matrixUsername);
                 localpart = matrixUsername;
             } else {
-                log.info("Could not find matrix username for", id);
+                log.info(`Could not find matrix username for ${id}. Falling back to ghost user.`);
             }
         }
 

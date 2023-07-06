@@ -10,6 +10,10 @@ export class MatrixUsernameStore {
     ) {
     }
 
+    hasMappingForTeam(teamDomain: string): boolean {
+        return ["wordpress", "orbit-sandbox"].includes(teamDomain);
+    }
+
     async getBySlackUserId(slackUserId: string): Promise<MatrixUsername | null> {
         return await this.datastore.getMatrixUsername(slackUserId);
     }
