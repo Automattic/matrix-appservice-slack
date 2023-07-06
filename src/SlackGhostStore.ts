@@ -4,6 +4,7 @@ import { SlackGhost } from "./SlackGhost";
 import { IConfig } from "./IConfig";
 import QuickLRU from "@alloc/quick-lru";
 import { Logger, Bridge } from "matrix-appservice-bridge";
+import {MatrixUsernameStore} from "./MatrixUsernameStore";
 
 const log = new Logger("SlackGhostStore");
 
@@ -13,7 +14,13 @@ const log = new Logger("SlackGhostStore");
 export class SlackGhostStore {
     private ghostsByUserId: QuickLRU<string, SlackGhost>;
 
-    constructor(private rooms: SlackRoomStore, private datastore: Datastore, private config: IConfig, private bridge: Bridge) {
+    constructor(
+        private rooms: SlackRoomStore,
+        private datastore: Datastore,
+        private config: IConfig,
+        private bridge: Bridge,
+        private matrixUsernameStore: MatrixUsernameStore,
+    ) {
         // XXX: Use cache value from config.
         this.ghostsByUserId = new QuickLRU({ maxSize: 50 });
     }

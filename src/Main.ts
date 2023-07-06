@@ -1115,7 +1115,7 @@ export class Main {
         }
 
         this.matrixUsernameStore = new MatrixUsernameStore(this.datastore, this.config);
-        this.ghosts = new SlackGhostStore(this.rooms, this.datastore, this.config, this.bridge);
+        this.ghosts = new SlackGhostStore(this.rooms, this.datastore, this.config, this.bridge, this.matrixUsernameStore);
 
         this.clientfactory = new SlackClientFactory(this.datastore, this.config, (method: string) => {
             this.incRemoteCallCounter(method);
