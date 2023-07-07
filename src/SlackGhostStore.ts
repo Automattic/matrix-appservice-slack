@@ -4,6 +4,7 @@ import { SlackGhost } from "./SlackGhost";
 import { IConfig } from "./IConfig";
 import QuickLRU from "@alloc/quick-lru";
 import { Logger, Bridge } from "matrix-appservice-bridge";
+import {MatrixUsernameStore} from "./MatrixUsernameStore";
 
 const log = new Logger("SlackGhostStore");
 
@@ -13,7 +14,13 @@ const log = new Logger("SlackGhostStore");
 export class SlackGhostStore {
     private ghostsByUserId: QuickLRU<string, SlackGhost>;
 
-    constructor(private rooms: SlackRoomStore, private datastore: Datastore, private config: IConfig, private bridge: Bridge) {
+    constructor(
+        private rooms: SlackRoomStore,
+        private datastore: Datastore,
+        private config: IConfig,
+        private bridge: Bridge,
+        private matrixUsernameStore?: MatrixUsernameStore,
+    ) {
         // XXX: Use cache value from config.
         this.ghostsByUserId = new QuickLRU({ maxSize: 50 });
     }
@@ -55,26 +62,22 @@ export class SlackGhostStore {
     }
 
     public async getUserId(id: string, teamDomain: string): Promise<string> {
-        if (["wordpress", "orbit-sandbox"].includes(teamDomain)) {
-            const wporgUsername = await this.datastore.getWporgUsername(id);
-            if (wporgUsername) {
-                let matrixUsername = wporgUsername;
+        let localpart;
 
-                // When a user is created through SSO, synapse replaces a leading _ with =5f,
-                // so we need to do the same here.
-                if (matrixUsername.startsWith("_")) {
-                    matrixUsername = `=5f${matrixUsername.slice(1)}`;
-                }
-
-                matrixUsername = `@${matrixUsername}:${this.config.homeserver.server_name}`;
-                log.info("Found wporg username:", wporgUsername, id, matrixUsername);
-                return matrixUsername;
+        if (this.matrixUsernameStore?.hasMappingForTeam(teamDomain)) {
+            const matrixUsername = await this.matrixUsernameStore?.getBySlackUserId(id);
+            if (matrixUsername) {
+                log.info(`Found matrix username for ${id}:`, matrixUsername);
+                localpart = matrixUsername;
             } else {
-                log.info("Could not find wporg username for", id);
+                log.info(`Could not find matrix username for ${id}. Falling back to ghost user.`);
             }
         }
 
-        const localpart = `${this.config.username_prefix}${teamDomain.toLowerCase()}_${id.toUpperCase()}`;
+        if (!localpart) {
+            localpart = `${this.config.username_prefix}${teamDomain.toLowerCase()}_${id.toUpperCase()}`;
+        }
+
         return `@${localpart}:${this.config.homeserver.server_name}`;
     }
 

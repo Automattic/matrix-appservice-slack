@@ -46,6 +46,7 @@ import { UserAdminRoom } from "./rooms/UserAdminRoom";
 import { TeamSyncer } from "./TeamSyncer";
 import { SlackGhostStore } from "./SlackGhostStore";
 import { AllowDenyList, DenyReason } from "./AllowDenyList";
+import {MatrixUsernameStore} from "./MatrixUsernameStore";
 
 const log = new Logger("Main");
 
@@ -119,6 +120,7 @@ export class Main {
 
     public readonly rooms: SlackRoomStore = new SlackRoomStore();
     private ghosts!: SlackGhostStore; // Defined in .run
+    private matrixUsernameStore!: MatrixUsernameStore;
 
     private matrixUsersById: QuickLRU<string, MatrixUser>;
 
@@ -1112,7 +1114,11 @@ export class Main {
             throw Error("Unknown engine for database. Please use 'postgres' or 'nedb");
         }
 
-        this.ghosts = new SlackGhostStore(this.rooms, this.datastore, this.config, this.bridge);
+        if (this.config.matrix_username_store?.enabled) {
+            this.matrixUsernameStore = new MatrixUsernameStore(this.datastore, this.config);
+        }
+
+        this.ghosts = new SlackGhostStore(this.rooms, this.datastore, this.config, this.bridge, this.matrixUsernameStore);
 
         this.clientfactory = new SlackClientFactory(this.datastore, this.config, (method: string) => {
             this.incRemoteCallCounter(method);

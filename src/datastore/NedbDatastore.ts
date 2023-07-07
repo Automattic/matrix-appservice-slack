@@ -167,8 +167,12 @@ export class NedbDatastore implements Datastore {
         return (await this.userStore.getMatrixUser(userId)) || null;
     }
 
-    public async getWporgUsername(slackUserId: string): Promise<string|null> {
-        return null;
+    public async getMatrixUsername(slackUserId: string): Promise<string|null> {
+        throw Error("method not implemented");
+    }
+
+    public async setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null> {
+        throw Error("method not implemented");
     }
 
     public async storeMatrixUser(user: MatrixUser): Promise<null> {
