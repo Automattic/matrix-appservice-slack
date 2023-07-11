@@ -95,13 +95,13 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
     }
 
     public async getMatrixUsername(slackUserId: string): Promise<string|null> {
-        const dbEntry = await this.postgresDb.oneOrNone("SELECT wporg_id FROM wporg_users WHERE slack_id = ${slackUserId}", { slackUserId });
+        const dbEntry = await this.postgresDb.oneOrNone("SELECT matrix_username FROM matrix_usernames WHERE slack_id = ${slackUserId}", { slackUserId });
         return dbEntry ? dbEntry.wporg_id : null;
     }
 
     public async setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null> {
         return this.postgresDb.none(
-            "INSERT INTO wporg_users (wporg_id, slack_id) VALUES (${matrixUsername}, ${slackUserId})" +
+            "INSERT INTO matrix_usernames (matrix_username, slack_id) VALUES (${matrixUsername}, ${slackUserId})" +
             "ON CONFLICT DO NOTHING",
             {
                 matrixUsername,
