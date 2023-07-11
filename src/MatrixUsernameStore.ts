@@ -64,8 +64,8 @@ export class MatrixUsernameStore {
     private async getFromRemote(slackUserId: string): Promise<MatrixUsername | null> {
         const client = axios.create();
 
-        const logError = (res?: AxiosResponse, request?) => {
-            log.warn("Failed to retrieve Matrix username:", res?.status, res?.statusText, res?.headers, res?.data, request.res.responseUrl);
+        const logError = (r: AxiosResponse | undefined) => {
+            log.warn("Failed to retrieve Matrix username:", r?.status, r?.statusText, r?.headers, r?.data);
         };
 
         let response;
@@ -76,7 +76,7 @@ export class MatrixUsernameStore {
                 return null;
             }
         } catch (error) {
-            logError((error as AxiosError).response, (error as AxiosError).request);
+            logError((error as AxiosError).response);
             return null;
         }
 
