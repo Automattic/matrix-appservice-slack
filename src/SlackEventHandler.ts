@@ -156,7 +156,7 @@ export class SlackEventHandler extends BaseSlackHandler {
                 endTimer({outcome: "fail"});
             } else if (err.message === "unknown_channel") {
                 const chanIdMix = `${event.channel} (${teamId})`;
-                log.warn(`Ignoring message from unrecognised slack channel id: ${chanIdMix}`);
+                log.debug(`Ignoring message from unrecognised slack channel id: ${chanIdMix}`);
                 this.main.incCounter(METRIC_RECEIVED_MESSAGE, {side: "remote"});
                 endTimer({outcome: "dropped"});
                 return;
