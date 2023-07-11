@@ -1,6 +1,6 @@
 import {Datastore} from "./datastore/Models";
 import {IConfig} from "./IConfig";
-import axios from "axios";
+import axios, {AxiosError, AxiosResponse} from "axios";
 import {Logger} from "matrix-appservice-bridge";
 
 type MatrixUsername = string;
@@ -63,13 +63,23 @@ export class MatrixUsernameStore {
 
     private async getFromRemote(slackUserId: string): Promise<MatrixUsername | null> {
         const client = axios.create();
-        const {status, data} = await client.get(`${this.url.toString()}&slack_id=${slackUserId}`);
 
-        if (status !== 200 || data.error || !data.matrix) {
-            log.warn("Failed to retrieve matrix username", status, data);
+        const logError = (r: AxiosResponse | undefined) => {
+            log.warn("Failed to retrieve Matrix username:", r?.status, r?.statusText, r?.headers, r?.data);
+        };
+
+        let response;
+        try {
+            response = await client.get(`${this.url.toString()}&slack_id=${slackUserId}`);
+            if (response.data.error || !response.data.matrix) {
+                logError(response);
+                return null;
+            }
+        } catch (error) {
+            logError((error as AxiosError).response);
             return null;
         }
 
-        return data.matrix;
+        return response.data.matrix;
     }
 }
