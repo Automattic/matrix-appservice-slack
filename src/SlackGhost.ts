@@ -175,7 +175,10 @@ export class SlackGhost {
 
         let changed;
         const matrixProfile = await this.intent.getProfileInfo(this.matrixUserId);
-        const hasDisplayName = !!matrixProfile.displayname && matrixProfile.displayname !== "";
+        const matrixUsername = this.matrixUserId.slice(1, this.matrixUserId.indexOf(":"));
+        const hasDisplayName = !!matrixProfile.displayname
+            && matrixProfile.displayname !== ""
+            && matrixProfile.displayname !== matrixUsername;
 
         // If matrix user already has a display name, we don't want to overwrite it with slack's display name.
         if (hasDisplayName) {
