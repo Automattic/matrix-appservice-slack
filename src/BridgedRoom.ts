@@ -25,6 +25,7 @@ import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
+import {MatrixClient} from "matrix-bot-sdk";
 
 const log = new Logger("BridgedRoom");
 
@@ -733,8 +734,22 @@ export class BridgedRoom {
             throw Error("Could not find original event for deleted message");
         }
 
-        const botClient = this.main.botIntent.matrixClient;
-        await botClient.redactEvent(originalEvent.roomId, originalEvent.eventId);
+        let client: MatrixClient | undefined;
+
+        const originalMessage = message.previous_message;
+        if (originalMessage?.user) {
+            const originalGhost = await this.main.ghostStore.get(originalMessage.user, undefined, this.slackTeamId);
+            if (originalGhost) {
+                client = originalGhost.intent.matrixClient;
+            }
+        }
+
+        if (!client) {
+            log.warn("Ghost for deleted message was not found. Will attempt to redact through the bot.");
+            client = this.main.botIntent.matrixClient;
+        }
+
+        await client.redactEvent(originalEvent.roomId, originalEvent.eventId);
     }
 
     public async onSlackReactionAdded(
