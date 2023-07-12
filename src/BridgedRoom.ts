@@ -529,6 +529,15 @@ export class BridgedRoom {
             body.as_user = true;
             delete body.username;
         }
+
+        const metadata = {
+            event_type: "matrix_event",
+            event_payload: {
+                id: encodeURIComponent(message.event_id),
+                room_id: encodeURIComponent(message.room_id),
+            },
+        };
+
         let res: ChatPostMessageResponse;
         const chatPostMessageArgs = {
             ...body,
@@ -536,6 +545,7 @@ export class BridgedRoom {
             text: text || "",
             channel: this.slackChannelId!,
             unfurl_links: true,
+            metadata,
         };
 
         try {
