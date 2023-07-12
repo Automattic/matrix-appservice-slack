@@ -83,6 +83,10 @@ export interface ISlackMessageEvent extends ISlackEvent {
     thread_ts?: string;
 }
 
+export interface ISlackMessageDeletedEvent extends Omit<ISlackMessageEvent, "deleted_ts"> {
+    deleted_ts: string;
+}
+
 export interface ISlackFile {
     name?: string;
     thumb_360?: string;

@@ -20,11 +20,12 @@ import { SlackGhost } from "./SlackGhost";
 import { Main, METRIC_SENT_MESSAGES } from "./Main";
 import { default as substitutions, getFallbackForMissingEmoji, IMatrixToSlackResult } from "./substitutions";
 import * as emoji from "node-emoji";
-import { ISlackMessageEvent, ISlackEvent, ISlackFile } from "./BaseSlackHandler";
+import {ISlackMessageEvent, ISlackEvent, ISlackFile, ISlackMessageDeletedEvent} from "./BaseSlackHandler";
 import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
+import {MatrixClient} from "matrix-bot-sdk";
 
 const log = new Logger("BridgedRoom");
 
@@ -699,7 +700,8 @@ export class BridgedRoom {
                 await new Promise((r) => setTimeout(r, PUPPET_INCOMING_DELAY_MS));
             }
         }
-        if (this.recentSlackMessages.includes(message.ts)) {
+        const isMessageChangedEvent = message.subtype && message.subtype === 'message_changed';
+        if (!isMessageChangedEvent && this.recentSlackMessages.includes(message.ts)) {
             // We sent this, ignore.
             return;
         }
@@ -712,7 +714,7 @@ export class BridgedRoom {
             }
             this.slackSendLock = this.slackSendLock.then(() => {
                 // Check again
-                if (this.recentSlackMessages.includes(message.ts)) {
+                if (!isMessageChangedEvent && this.recentSlackMessages.includes(message.ts)) {
                     // We sent this, ignore
                     return;
                 }
@@ -725,6 +727,30 @@ export class BridgedRoom {
             log.error("Failed to process event");
             log.error(err);
         }
+    }
+
+    public async onSlackMessageDeleted(message: ISlackMessageDeletedEvent): Promise<void> {
+        const originalEvent = await this.main.datastore.getEventBySlackId(message.channel, message.deleted_ts);
+        if (!originalEvent) {
+            throw Error("Could not find original event for deleted message");
+        }
+
+        let client: MatrixClient | undefined;
+
+        const originalMessage = message.previous_message;
+        if (originalMessage?.user) {
+            const originalGhost = await this.main.ghostStore.get(originalMessage.user, undefined, this.slackTeamId);
+            if (originalGhost) {
+                client = originalGhost.intent.matrixClient;
+            }
+        }
+
+        if (!client) {
+            log.warn("Ghost for deleted message was not found. Will attempt to redact through the bot.");
+            client = this.main.botIntent.matrixClient;
+        }
+
+        await client.redactEvent(originalEvent.roomId, originalEvent.eventId);
     }
 
     public async onSlackReactionAdded(
