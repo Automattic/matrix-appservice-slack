@@ -20,7 +20,7 @@ import { SlackGhost } from "./SlackGhost";
 import { Main, METRIC_SENT_MESSAGES } from "./Main";
 import { default as substitutions, getFallbackForMissingEmoji, IMatrixToSlackResult } from "./substitutions";
 import * as emoji from "node-emoji";
-import { ISlackMessageEvent, ISlackEvent, ISlackFile } from "./BaseSlackHandler";
+import {ISlackMessageEvent, ISlackEvent, ISlackFile, ISlackMessageDeletedEvent} from "./BaseSlackHandler";
 import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
@@ -725,6 +725,16 @@ export class BridgedRoom {
             log.error("Failed to process event");
             log.error(err);
         }
+    }
+
+    public async onSlackMessageDeleted(message: ISlackMessageDeletedEvent): Promise<void> {
+        const originalEvent = await this.main.datastore.getEventBySlackId(message.channel, message.deleted_ts);
+        if (!originalEvent) {
+            throw Error("Could not find original event for deleted message");
+        }
+
+        const botClient = this.main.botIntent.matrixClient;
+        await botClient.redactEvent(originalEvent.roomId, originalEvent.eventId);
     }
 
     public async onSlackReactionAdded(

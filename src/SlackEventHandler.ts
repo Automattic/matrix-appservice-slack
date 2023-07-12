@@ -14,7 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { BaseSlackHandler, ISlackEvent, ISlackMessageEvent, ISlackUser } from "./BaseSlackHandler";
+import {
+    BaseSlackHandler,
+    ISlackEvent,
+    ISlackMessageDeletedEvent,
+    ISlackMessageEvent,
+    ISlackUser
+} from "./BaseSlackHandler";
 import { BridgedRoom } from "./BridgedRoom";
 import { Main, METRIC_RECEIVED_MESSAGE } from "./Main";
 import { Logger } from "matrix-appservice-bridge";
@@ -294,14 +300,7 @@ export class SlackEventHandler extends BaseSlackHandler {
                 }
             }
         } else if (msg.subtype === "message_deleted" && msg.deleted_ts) {
-            const originalEvent = await this.main.datastore.getEventBySlackId(msg.channel, msg.deleted_ts);
-            if (originalEvent) {
-                const botClient = this.main.botIntent.matrixClient;
-                await botClient.redactEvent(originalEvent.roomId, originalEvent.eventId);
-                return;
-            }
-            // If we don't have the event
-            throw Error("unknown_message");
+            return await room.onSlackMessageDeleted(msg as ISlackMessageDeletedEvent);
         } else if (msg.subtype === "message_replied") {
             // Slack sends us one of these as well as a normal message event
             // when using RTM, so we ignore it.
