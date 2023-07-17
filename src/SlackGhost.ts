@@ -190,11 +190,7 @@ export class SlackGhost {
 
         let slackDisplayName = message.username || message.user_name;
         if (client) { // We can be smarter if we have the bot.
-            if (message.bot_id && message.user_id) {
-                // In the case of operations on bots, we will have both a bot_id and a user_id.
-                // Ignore updating the displayname in this case.
-                return false;
-            } else if (message.bot_id) {
+            if (message.bot_id) {
                 slackDisplayName = await this.getBotName(message.bot_id, client);
             } else if (message.user_id) {
                 slackDisplayName = await this.getDisplayname(client);
