@@ -65,7 +65,7 @@ export class MatrixUsernameStore {
         const client = axios.create();
 
         const logError = (r: AxiosResponse | undefined) => {
-            log.warn("Failed to retrieve Matrix username:", r?.status, r?.statusText, r?.headers, r?.data);
+            log.warn(`Failed to retrieve Matrix username for ${slackUserId}:`, r?.status, r?.statusText, r?.headers, r?.data);
         };
 
         let response;
