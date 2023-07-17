@@ -21,6 +21,7 @@ import { WebClient } from "@slack/web-api";
 import { BotsInfoResponse, UsersInfoResponse } from "./SlackResponses";
 import { UserEntry, Datastore } from "./datastore/Models";
 import axios from "axios";
+import {IConfig} from "./IConfig";
 
 const log = new Logger("SlackGhost");
 
@@ -46,8 +47,9 @@ export class SlackGhost {
         return this.atime;
     }
 
-    public static fromEntry(datastore: Datastore, entry: UserEntry, intent?: Intent): SlackGhost {
+    public static fromEntry(config: IConfig, datastore: Datastore, entry: UserEntry, intent?: Intent): SlackGhost {
         return new SlackGhost(
+            config,
             datastore,
             entry.slack_id,
             entry.team_id,
@@ -63,6 +65,7 @@ export class SlackGhost {
     private userInfoLoading?: Promise<UsersInfoResponse>;
     private updateInProgress = false;
     constructor(
+        private readonly config: IConfig,
         private datastore: Datastore,
         public readonly slackId: string,
         public readonly teamId: string|undefined,
@@ -176,12 +179,13 @@ export class SlackGhost {
         let changed;
         const matrixProfile = await this.intent.getProfileInfo(this.matrixUserId);
         const matrixUsername = this.matrixUserId.slice(1, this.matrixUserId.indexOf(":"));
+        const isGhost = matrixUsername.startsWith(this.config.username_prefix);
         const hasDisplayName = !!matrixProfile.displayname
             && matrixProfile.displayname !== ""
             && matrixProfile.displayname !== matrixUsername;
 
         // If matrix user already has a display name, we don't want to overwrite it with slack's display name.
-        if (hasDisplayName) {
+        if (!isGhost && hasDisplayName) {
             changed = this.displayname !== matrixProfile.displayname;
             this.displayname = matrixProfile.displayname;
             await this.datastore.upsertUser(this);
@@ -190,11 +194,7 @@ export class SlackGhost {
 
         let slackDisplayName = message.username || message.user_name;
         if (client) { // We can be smarter if we have the bot.
-            if (message.bot_id && message.user_id) {
-                // In the case of operations on bots, we will have both a bot_id and a user_id.
-                // Ignore updating the displayname in this case.
-                return false;
-            } else if (message.bot_id) {
+            if (message.bot_id) {
                 slackDisplayName = await this.getBotName(message.bot_id, client);
             } else if (message.user_id) {
                 slackDisplayName = await this.getDisplayname(client);

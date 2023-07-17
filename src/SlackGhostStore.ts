@@ -54,7 +54,7 @@ export class SlackGhostStore {
 
     public async getNullGhostDisplayName(channel: string, userId: string): Promise<string> {
         const room = this.rooms.getBySlackChannelId(channel);
-        const nullGhost = new SlackGhost(this.datastore, userId, room!.SlackTeamId!, userId, undefined);
+        const nullGhost = new SlackGhost(this.config, this.datastore, userId, room!.SlackTeamId!, userId, undefined);
         if (!room || !room.SlackClient) {
             return userId;
         }
@@ -117,10 +117,11 @@ export class SlackGhostStore {
         let ghost: SlackGhost;
         if (entry) {
             log.debug("Got ghost entry from datastore", userId);
-            ghost = SlackGhost.fromEntry(this.datastore, entry, intent);
+            ghost = SlackGhost.fromEntry(this.config, this.datastore, entry, intent);
         } else {
             log.debug("Creating new ghost for", userId);
             ghost = new SlackGhost(
+                this.config,
                 this.datastore,
                 slackUserId,
                 teamId,
@@ -145,6 +146,6 @@ export class SlackGhostStore {
             return null;
         }
         const intent = this.bridge.getIntent(userId);
-        return SlackGhost.fromEntry(this.datastore, entry, intent);
+        return SlackGhost.fromEntry(this.config, this.datastore, entry, intent);
     }
 }

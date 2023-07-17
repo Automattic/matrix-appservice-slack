@@ -1040,7 +1040,7 @@ export class BridgedRoom {
             }
         }
 
-        // If we are only handling text, send the text. File messages are handled in a seperate block.
+        // If we are only handling text, send the text. File messages are handled in a separate block.
         if (["bot_message", "file_comment", undefined].includes(subtype) && message.files === undefined) {
             return ghost.sendText(this.matrixRoomId, message.text!, this.slackTeamId, channelId, eventTS);
         } else if (subtype === "me_message") {

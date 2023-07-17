@@ -168,7 +168,7 @@ export const migrateFromNedb = async(nedb: NedbDatastore, targetDs: Datastore): 
             user.slack_id = parts[1];
             user.team_id = existingTeam!.id;
         }
-        const ghost = SlackGhost.fromEntry(null as any, user);
+        const ghost = SlackGhost.fromEntry({} as any, null as any, user);
         await targetDs.upsertUser(ghost);
         log.info(`Migrated slack user ${user.id} (${i + 1}/${allSlackUsers.length})`);
     }));
