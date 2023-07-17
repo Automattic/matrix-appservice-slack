@@ -21,6 +21,7 @@ import { WebClient } from "@slack/web-api";
 import { BotsInfoResponse, UsersInfoResponse } from "./SlackResponses";
 import { UserEntry, Datastore } from "./datastore/Models";
 import axios from "axios";
+import {IConfig} from "./IConfig";
 
 const log = new Logger("SlackGhost");
 
@@ -46,8 +47,9 @@ export class SlackGhost {
         return this.atime;
     }
 
-    public static fromEntry(datastore: Datastore, entry: UserEntry, intent?: Intent): SlackGhost {
+    public static fromEntry(config: IConfig, datastore: Datastore, entry: UserEntry, intent?: Intent): SlackGhost {
         return new SlackGhost(
+            config,
             datastore,
             entry.slack_id,
             entry.team_id,
@@ -63,6 +65,7 @@ export class SlackGhost {
     private userInfoLoading?: Promise<UsersInfoResponse>;
     private updateInProgress = false;
     constructor(
+        private readonly config: IConfig,
         private datastore: Datastore,
         public readonly slackId: string,
         public readonly teamId: string|undefined,
