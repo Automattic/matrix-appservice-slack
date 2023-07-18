@@ -47,6 +47,8 @@ export interface ISlackEvent {
 
 export interface ISlackEventMessageAttachment {
     fallback: string;
+    text?: string;
+    title_link?: string;
 }
 
 export interface ISlackMessageEvent extends ISlackEvent {
