@@ -271,6 +271,12 @@ export class SlackEventHandler extends BaseSlackHandler {
         if (msg.type === "message" && msg.attachments) {
             for (const attachment of msg.attachments) {
                 msg.text = attachment.fallback;
+                if (attachment.text) {
+                    msg.text = `${msg.text}: ${attachment.text}`;
+                    if (attachment.title_link) {
+                        msg.text = `${msg.text} [${attachment.title_link}]`;
+                    }
+                }
                 msg.text = await this.doChannelUserReplacements(msg, msg.text, room.SlackClient);
                 return await room.onSlackMessage(msg);
             }
