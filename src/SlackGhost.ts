@@ -281,10 +281,12 @@ export class SlackGhost {
         }
 
         const matrixProfile = await this.intent.getProfileInfo(this.matrixUserId);
+        const matrixUsername = this.matrixUserId.slice(1, this.matrixUserId.indexOf(":"));
+        const isGhost = matrixUsername.startsWith(this.config.username_prefix);
         const hasAvatar = !!matrixProfile.avatar_url && matrixProfile.avatar_url !== "";
 
         // If matrix user already has an avatar, we don't want to overwrite it with slack's avatar.
-        if (hasAvatar) {
+        if (!isGhost && hasAvatar) {
             const changed = this.avatarHash !== matrixProfile.avatar_url;
             this.avatarHash = matrixProfile.avatar_url;
             await this.datastore.upsertUser(this);
@@ -293,11 +295,7 @@ export class SlackGhost {
 
         let avatarUrl: string|undefined;
         let hash: string|undefined;
-        if (message.bot_id && message.user_id) {
-            // In the case of operations on bots, we will have both a bot_id and a user_id.
-            // Ignore updating the displayname in this case.
-            return false;
-        } else if (message.bot_id) {
+        if (message.bot_id) {
             avatarUrl = await this.getBotAvatarUrl(message.bot_id, client);
             hash = avatarUrl;
         } else if (message.user_id) {
