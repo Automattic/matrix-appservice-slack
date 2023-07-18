@@ -295,11 +295,7 @@ export class SlackGhost {
 
         let avatarUrl: string|undefined;
         let hash: string|undefined;
-        if (message.bot_id && message.user_id) {
-            // In the case of operations on bots, we will have both a bot_id and a user_id.
-            // Ignore updating the displayname in this case.
-            return false;
-        } else if (message.bot_id) {
+        if (message.bot_id) {
             avatarUrl = await this.getBotAvatarUrl(message.bot_id, client);
             hash = avatarUrl;
         } else if (message.user_id) {
