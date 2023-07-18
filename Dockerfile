@@ -29,5 +29,5 @@ COPY --from=BUILD /build/public /usr/src/app/public
 EXPOSE 9898
 EXPOSE 5858
 
-ENTRYPOINT [ "node", "lib/app.js", "-c", "/config/config.yaml" ]
+ENTRYPOINT [ "node", "--unhandled-rejections=warn", "lib/app.js", "-c", "/config/config.yaml" ]
 CMD [ "-f", "/config/slack-registration.yaml" ]
