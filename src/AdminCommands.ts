@@ -167,10 +167,10 @@ export class AdminCommands {
                     return !nameFilter.test(room.SlackChannelName);
                 });
 
-                let content = Buffer.from("slack_channel_id, matrix_room_id");
+                let content = Buffer.from(`"slack_channel_id","matrix_room_id"\n`);
                 rooms.forEach((r) => {
-                    const line = `"${r.SlackChannelId}", "${r.MatrixRoomId}"`;
-                    content = Buffer.concat([content, Buffer.from(`\n${line}`)]);
+                    const line = `"${r.SlackChannelId}","${r.MatrixRoomId}"`;
+                    content = Buffer.concat([content, Buffer.from(`${line}\n`)]);
                 });
 
                 const contentType = "text/csv";
