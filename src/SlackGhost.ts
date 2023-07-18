@@ -281,10 +281,12 @@ export class SlackGhost {
         }
 
         const matrixProfile = await this.intent.getProfileInfo(this.matrixUserId);
+        const matrixUsername = this.matrixUserId.slice(1, this.matrixUserId.indexOf(":"));
+        const isGhost = matrixUsername.startsWith(this.config.username_prefix);
         const hasAvatar = !!matrixProfile.avatar_url && matrixProfile.avatar_url !== "";
 
         // If matrix user already has an avatar, we don't want to overwrite it with slack's avatar.
-        if (hasAvatar) {
+        if (!isGhost && hasAvatar) {
             const changed = this.avatarHash !== matrixProfile.avatar_url;
             this.avatarHash = matrixProfile.avatar_url;
             await this.datastore.upsertUser(this);
