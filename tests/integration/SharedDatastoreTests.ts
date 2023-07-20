@@ -28,7 +28,7 @@ export const doDatastoreTests = (ds: () => Datastore, truncateTables: () => void
 
         it("should be able to store and retrieve a slack user", async () => {
             await ds().upsertUser(
-                SlackGhost.fromEntry(null as any, {
+                SlackGhost.fromEntry({} as any, null as any, {
                     display_name: "A displayname",
                     avatar_url: "Some avatar",
                     id: "someid1",
@@ -47,7 +47,7 @@ export const doDatastoreTests = (ds: () => Datastore, truncateTables: () => void
         });
 
         it("should be able to upsert a slack user", async () => {
-            const user = SlackGhost.fromEntry(null as any, {
+            const user = SlackGhost.fromEntry({} as any, null as any, {
                 display_name: "A displayname",
                 avatar_url: "Some avatar",
                 id: "someid3",
@@ -281,7 +281,7 @@ export const doDatastoreTests = (ds: () => Datastore, truncateTables: () => void
 
     describe("metrics", () => {
         it("should not throw when an activity is upserted twice", async () => {
-            const user = SlackGhost.fromEntry(null as any, {
+            const user = SlackGhost.fromEntry({} as any, null as any, {
                 display_name: "A displayname",
                 avatar_url: "Some avatar",
                 id: "someid1",
