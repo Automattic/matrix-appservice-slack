@@ -95,7 +95,10 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
     }
 
     public async getMatrixUsername(slackUserId: string): Promise<string|null> {
-        const dbEntry = await this.postgresDb.oneOrNone("SELECT matrix_username FROM matrix_usernames WHERE slack_id = ${slackUserId}", { slackUserId });
+        const dbEntry = await this.postgresDb.oneOrNone(
+            "SELECT matrix_username FROM matrix_usernames WHERE slack_id = ${slackUserId}",
+            { slackUserId }
+        );
         return dbEntry ? dbEntry.matrix_username : null;
     }
 

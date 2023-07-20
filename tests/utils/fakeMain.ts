@@ -65,10 +65,10 @@ export class FakeMain {
 
     private async getExistingSlackGhost(userId: string) {
         if (userId === "@stranger:localhost") {
-            return new SlackGhost(this.datastore, "12345", undefined, "@stranger:localhost", undefined);
+            return new SlackGhost({} as any, this.datastore, "12345", undefined, "@stranger:localhost", undefined);
         }
         if (userId === "@thing:localhost") {
-            return new SlackGhost(this.datastore, "54321", undefined, "@thing:localhost", undefined);
+            return new SlackGhost({} as any, this.datastore, "54321", undefined, "@thing:localhost", undefined);
         }
         return null;
     }

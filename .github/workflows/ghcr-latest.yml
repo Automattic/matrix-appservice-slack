@@ -9,7 +9,10 @@ env:
   IMAGE_NAME: ""
 
 jobs:
+  call-run-tests:
+    uses: ./.github/workflows/run-tests.yml
   build-and-push-image:
+    needs: call-run-tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
