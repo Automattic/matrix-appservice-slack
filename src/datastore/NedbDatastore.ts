@@ -167,10 +167,12 @@ export class NedbDatastore implements Datastore {
         return (await this.userStore.getMatrixUser(userId)) || null;
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     public async getMatrixUsername(slackUserId: string): Promise<string|null> {
         throw Error("method not implemented");
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     public async setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null> {
         throw Error("method not implemented");
     }
