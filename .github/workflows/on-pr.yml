@@ -6,3 +6,5 @@ on:
 jobs:
   call-run-tests:
     uses: ./.github/workflows/run-tests.yml
+  call-lint:
+    uses: ./.github/workflows/lint.yml
