@@ -743,8 +743,14 @@ export class Main {
         const endTimer = this.startTimer("matrix_request_seconds");
 
         // Do not post echoes back to Slack.
+        // First check if we know the event, and to really be sure, then also check whether it has an external_url,
+        // which would mean the event came from Slack.
+        //
+        // TODO: Relying on the external_url means this check is not compatible with the same room being bridged to
+        // multiple Slack channels. See https://github.com/Automattic/Orbit/issues/473 for the reasoning behind this check.
         const existingEvent = await this.datastore.getEventByMatrixId(ev.room_id, ev.event_id);
-        if (existingEvent) {
+        const hasExternalUrl = !!ev.content.external_url;
+        if (existingEvent || hasExternalUrl) {
             endTimer({outcome: "dropped"});
             return;
         }
