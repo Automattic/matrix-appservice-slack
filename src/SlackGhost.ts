@@ -394,6 +394,24 @@ export class SlackGhost {
         // a variant of markdown that is in the realm of sanity. Currently text
         // will be slack's markdown until we've got a slack -> markdown parser.
         let formattedBody: string = Slackdown.parse(text);
+
+        // Parse blockquotes.
+        const blocks: string[] = [];
+        let currentQuote = "";
+        const quoteDelimiter = "> ";
+        for (const line of formattedBody.split("\n")) {
+            if (line.startsWith(quoteDelimiter)) {
+                currentQuote += line.replace(quoteDelimiter, "") + "<br>";
+            } else {
+                if (currentQuote !== "") {
+                    blocks.push(`<blockquote>${currentQuote}</blockquote>`);
+                }
+                blocks.push(`${line}<br>`);
+                currentQuote = "";
+            }
+        }
+
+        formattedBody = blocks.join("");
         formattedBody = formattedBody.replace("\n", "<br>");
 
         const content = {
