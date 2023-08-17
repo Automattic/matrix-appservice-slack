@@ -410,6 +410,9 @@ export class SlackGhost {
                 currentQuote = "";
             }
         }
+        if (currentQuote !== "") {
+            blocks.push(`<blockquote>${currentQuote}</blockquote>`);
+        }
 
         formattedBody = blocks.join("");
         formattedBody = formattedBody.replace("\n", "<br>");
