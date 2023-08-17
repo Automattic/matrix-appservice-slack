@@ -393,10 +393,11 @@ export class SlackGhost {
         // TODO: This is fixing plaintext mentions, but should be refactored.
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
         const body = text.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
+        const formattedBody = Slackdown.parse(text);
         const content = {
             body,
             format: "org.matrix.custom.html",
-            formatted_body: Slackdown.parse(text),
+            formatted_body: formattedBody,
             msgtype: "m.text",
             ...extra,
         };
