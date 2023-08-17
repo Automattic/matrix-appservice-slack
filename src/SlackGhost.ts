@@ -414,7 +414,9 @@ export class SlackGhost {
             blocks.push(`<blockquote>${currentQuote}</blockquote>`);
         }
 
-        formattedBody = blocks.join("");
+        if (blocks.length > 0) {
+            formattedBody = blocks.join("");
+        }
         formattedBody = formattedBody.replace("\n", "<br>");
 
         const content = {
