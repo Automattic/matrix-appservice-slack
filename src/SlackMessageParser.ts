@@ -4,7 +4,7 @@ import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/Messa
 import substitutions from "./substitutions";
 
 export class SlackMessageParser {
-    async parse(event: ISlackMessageEvent): Promise<TextualMessageEventContent | null> {
+    parse(event: ISlackMessageEvent): TextualMessageEventContent | null {
         const subtype = event.subtype;
         let text = event.text;
         if (!text) {
@@ -15,7 +15,7 @@ export class SlackMessageParser {
 
         const isText = [undefined, "bot_message", "file_comment"].includes(subtype);
         if (isText) {
-            return await this.parseText(text);
+            return this.parseText(text);
         }
 
         if (subtype === "me_message" && text) {
@@ -28,7 +28,7 @@ export class SlackMessageParser {
         return null;
     }
 
-    private async parseText(text: string): Promise<TextualMessageEventContent> {
+    private parseText(text: string): TextualMessageEventContent {
         // TODO: This is fixing plaintext mentions, but should be refactored.
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
         const body = text.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");

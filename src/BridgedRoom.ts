@@ -1032,7 +1032,7 @@ export class BridgedRoom {
         }
 
         const parser = new SlackMessageParser();
-        const parsedMessage = await parser.parse(message);
+        const parsedMessage = parser.parse(message);
 
         if (parsedMessage && message.thread_ts !== undefined) {
             let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
