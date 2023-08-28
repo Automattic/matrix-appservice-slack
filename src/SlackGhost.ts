@@ -383,7 +383,6 @@ export class SlackGhost {
         slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
-        extra: Record<string, unknown> = {}
     ): Promise<void> {
         // TODO: This is fixing plaintext mentions, but should be refactored.
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
@@ -424,7 +423,6 @@ export class SlackGhost {
             format: "org.matrix.custom.html",
             formatted_body: formattedBody,
             msgtype: "m.text",
-            ...extra,
         };
 
         await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
