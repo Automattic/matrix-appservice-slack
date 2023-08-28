@@ -1044,6 +1044,22 @@ export class BridgedRoom {
         const parser = new SlackMessageParser();
         const parsedMessage = await parser.parse(message);
 
+        if (parsedMessage.files) {
+            for (const file of parsedMessage.files) {
+                try {
+                    await this.handleSlackMessageFile(file, eventTS, ghost);
+                } catch (ex) {
+                    log.warn(`Couldn't handle Slack file, ignoring:`, ex);
+                }
+            }
+            // TODO: Currently Matrix lacks a way to upload a "captioned image",
+            //       so we just send a separate `m.image` and `m.text` message
+            // See https://github.com/matrix-org/matrix-doc/issues/906
+            if (parsedMessage.text) {
+                return ghost.sendText(this.matrixRoomId, parsedMessage.text, this.slackTeamId, channelId, eventTS);
+            }
+        }
+
         if (parsedMessage.text) {
             if (["m.text", "m.emote"].includes(parsedMessage.text.msgtype)) {
                 return await ghost.sendText(this.matrixRoomId, parsedMessage.text, this.slackTeamId, channelId, eventTS);
@@ -1124,20 +1140,6 @@ export class BridgedRoom {
                 ...replyContent,
             };
             return ghost.sendMessage(this.MatrixRoomId, matrixContent, this.slackTeamId, channelId, eventTS);
-        } else if (message.files) { // A message without a subtype can contain files.
-            for (const file of message.files) {
-                try {
-                    await this.handleSlackMessageFile(file, eventTS, ghost);
-                } catch (ex) {
-                    log.warn(`Couldn't handle Slack file, ignoring:`, ex);
-                }
-            }
-            // TODO: Currently Matrix lacks a way to upload a "captioned image",
-            //   so we just send a separate `m.image` and `m.text` message
-            // See https://github.com/matrix-org/matrix-doc/issues/906
-            if (parsedMessage?.text) {
-                return ghost.sendText(this.matrixRoomId, parsedMessage.text, this.slackTeamId, channelId, eventTS);
-            }
         } else if (message.subtype === "group_join" && message.user) {
             /* Private rooms don't send the usual join events so we listen for these */
             return this.onSlackUserJoin(message.user, message.inviter);
