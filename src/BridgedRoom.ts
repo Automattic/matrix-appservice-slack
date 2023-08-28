@@ -1031,12 +1031,6 @@ export class BridgedRoom {
             }
         }
 
-        // Transform the text if it is present.
-        if (message.text) {
-            message.text = substitutions.slackToMatrix(message.text,
-                subtype === "file_comment" ? message.file : undefined);
-        }
-
         const parser = new SlackMessageParser();
         const parsedMessage = await parser.parse(message);
 

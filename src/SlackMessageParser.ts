@@ -1,20 +1,27 @@
 import {ISlackMessageEvent} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
+import substitutions from "./substitutions";
 
 export class SlackMessageParser {
     async parse(event: ISlackMessageEvent): Promise<TextualMessageEventContent | null> {
         const subtype = event.subtype;
+        let text = event.text;
+        if (!text) {
+            return null;
+        }
+
+        text = substitutions.slackToMatrix(text, subtype === "file_comment" ? event.file : undefined);
 
         const isText = [undefined, "bot_message", "file_comment"].includes(subtype);
         if (isText) {
-            return await this.parseText(event.text || "");
+            return await this.parseText(text);
         }
 
-        if (subtype === "me_message" && event.text) {
+        if (subtype === "me_message" && text) {
             return {
                 msgtype: "m.emote",
-                body: event.text,
+                body: text,
             };
         }
 
