@@ -1,11 +1,48 @@
-import {ISlackMessageEvent} from "./BaseSlackHandler";
-import {TextualMessageEventContent} from "matrix-bot-sdk";
+import {ISlackFile, ISlackMessageEvent} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
+import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
+
+interface SlackParsedMessage {
+    text?: TextualMessageEventContent;
+    files?: ISlackFile[];
+}
 
 export class SlackMessageParser {
-    async parse(event: ISlackMessageEvent): Promise<TextualMessageEventContent> {
-        const text = event.text || "";
+    async parse(event: ISlackMessageEvent): Promise<SlackParsedMessage> {
+        const subtype = event.subtype;
 
+        const isText =
+            [undefined, "bot_message", "file_comment"].includes(subtype)
+            // File messages are handled in a separate block.
+            && event.files === undefined
+        ;
+        if (isText) {
+            return {
+                text: await this.parseText(event.text || "")
+            };
+        }
+
+        if (subtype === "me_message" && event.text) {
+            return {
+                text: {
+                    msgtype: "m.emote",
+                    body: event.text,
+                },
+            };
+        }
+
+        if (event.files) {
+            const text = await this.parseText(event.text || "");
+            return {
+                text,
+                files: event.files,
+            };
+        }
+
+        return {};
+    }
+
+    private async parseText(text: string): Promise<TextualMessageEventContent> {
         // TODO: This is fixing plaintext mentions, but should be refactored.
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
         const body = text.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");

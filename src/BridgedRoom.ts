@@ -25,7 +25,7 @@ import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
-import {MatrixClient} from "matrix-bot-sdk";
+import {MatrixClient, TextualMessageEventContent} from "matrix-bot-sdk";
 import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
@@ -1041,17 +1041,16 @@ export class BridgedRoom {
             }
         }
 
-        // If we are only handling text, send the text. File messages are handled in a separate block.
-        if (["bot_message", "file_comment", undefined].includes(subtype) && message.files === undefined) {
-            const parser = new SlackMessageParser();
-            const content = await parser.parse(message);
-            return ghost.sendText(this.matrixRoomId, content, this.slackTeamId, channelId, eventTS);
-        } else if (subtype === "me_message") {
-            return ghost.sendMessage(this.matrixRoomId, {
-                body: message.text!,
-                msgtype: "m.emote",
-            }, this.slackTeamId, channelId, eventTS);
-        } else if (subtype === "message_changed") {
+        const parser = new SlackMessageParser();
+        const parsedMessage = await parser.parse(message);
+
+        if (parsedMessage.text) {
+            if (["m.text", "m.emote"].includes(parsedMessage.text.msgtype)) {
+                return await ghost.sendText(this.matrixRoomId, parsedMessage.text, this.slackTeamId, channelId, eventTS);
+            }
+        }
+
+        if (subtype === "message_changed") {
             const previousMessage = ghost.prepareBody(substitutions.slackToMatrix(message.previous_message!.text!));
             // We use message.text here rather than the proper message.message.text
             // as we have added message.text ourselves and then transformed it.
@@ -1136,10 +1135,8 @@ export class BridgedRoom {
             // TODO: Currently Matrix lacks a way to upload a "captioned image",
             //   so we just send a separate `m.image` and `m.text` message
             // See https://github.com/matrix-org/matrix-doc/issues/906
-            if (message.text) {
-                const parser = new SlackMessageParser();
-                const content = await parser.parse(message);
-                return ghost.sendText(this.matrixRoomId, content, this.slackTeamId, channelId, eventTS);
+            if (parsedMessage?.text) {
+                return ghost.sendText(this.matrixRoomId, parsedMessage.text, this.slackTeamId, channelId, eventTS);
             }
         } else if (message.subtype === "group_join" && message.user) {
             /* Private rooms don't send the usual join events so we listen for these */

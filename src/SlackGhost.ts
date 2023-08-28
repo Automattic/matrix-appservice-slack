@@ -385,7 +385,13 @@ export class SlackGhost {
         slackRoomId: string,
         slackEventTs: string,
     ): Promise<void> {
-        await this.sendMessage(roomId, content as unknown as Record<string, string>, slackTeamId, slackRoomId, slackEventTs);
+        await this.sendMessage(
+            roomId,
+            content as unknown as Record<string, string>,
+            slackTeamId,
+            slackRoomId,
+            slackEventTs
+        );
     }
 
     public async sendMessage(
