@@ -517,31 +517,6 @@ export class SlackGhost {
         };
     }
 
-    public async sendWithReply(
-        roomId: string,
-        text: string,
-        slackTeamId: string | undefined,
-        slackRoomId: string,
-        slackEventTs: string,
-        replyEvent: IMatrixReplyEvent
-    ): Promise<void> {
-        const fallbackHtml = this.getFallbackHtml(roomId, replyEvent);
-        const fallbackText = this.getFallbackText(replyEvent);
-
-        const content = {
-            "m.relates_to": {
-                "m.in_reply_to": {
-                    event_id: replyEvent.event_id,
-                },
-            },
-            "msgtype": "m.text", // for those who just want to send the reply as-is
-            "body": `${fallbackText}\n\n${this.prepareBody(text)}`,
-            "format": "org.matrix.custom.html",
-            "formatted_body": fallbackHtml + this.prepareFormattedBody(text),
-        };
-        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
-    }
-
     public async sendTyping(roomId: string): Promise<void> {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
@@ -549,13 +524,6 @@ export class SlackGhost {
         // This lasts for 20000 - See http://matrix-org.github.io/matrix-js-sdk/1.2.0/client.js.html#line2031
         this.typingInRooms.add(roomId);
         await this._intent.sendTyping(roomId, true);
-    }
-
-    public async updateReadMarker(roomId: string, eventId: string): Promise<void> {
-        if (!this._intent) {
-            throw Error('No intent associated with ghost');
-        }
-        await this._intent.sendReadReceipt(roomId, eventId);
     }
 
     public async cancelTyping(roomId: string): Promise<void> {
