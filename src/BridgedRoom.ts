@@ -1023,6 +1023,14 @@ export class BridgedRoom {
             log.error(`Error storing activity metrics`, err);
         });
 
+        for (const file of message.files || []) {
+            try {
+                await this.handleSlackMessageFile(file, eventTS, ghost);
+            } catch (ex) {
+                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
+            }
+        }
+
         // Transform the text if it is present.
         if (message.text) {
             message.text = substitutions.slackToMatrix(message.text,
@@ -1032,29 +1040,21 @@ export class BridgedRoom {
         const parser = new SlackMessageParser();
         const parsedMessage = await parser.parse(message);
 
-        for (const file of parsedMessage.files || []) {
-            try {
-                await this.handleSlackMessageFile(file, eventTS, ghost);
-            } catch (ex) {
-                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
-            }
-        }
-
-        if (parsedMessage.text && message.thread_ts !== undefined) {
+        if (parsedMessage && message.thread_ts !== undefined) {
             let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
             if (replyMEvent) {
                 replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
                 return await ghost.sendInThread(
-                    this.MatrixRoomId, parsedMessage.text, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
+                    this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
                 );
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);
             }
         }
 
-        if (parsedMessage.text) {
-            if (["m.text", "m.emote"].includes(parsedMessage.text.msgtype)) {
-                return await ghost.sendText(this.matrixRoomId, parsedMessage.text, this.slackTeamId, channelId, eventTS);
+        if (parsedMessage) {
+            if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
+                return await ghost.sendText(this.matrixRoomId, parsedMessage, this.slackTeamId, channelId, eventTS);
             }
         }
 

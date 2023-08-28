@@ -1,45 +1,24 @@
-import {ISlackFile, ISlackMessageEvent} from "./BaseSlackHandler";
+import {ISlackMessageEvent} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 
-interface SlackParsedMessage {
-    text?: TextualMessageEventContent;
-    files?: ISlackFile[];
-}
-
 export class SlackMessageParser {
-    async parse(event: ISlackMessageEvent): Promise<SlackParsedMessage> {
+    async parse(event: ISlackMessageEvent): Promise<TextualMessageEventContent | null> {
         const subtype = event.subtype;
 
-        const isText =
-            [undefined, "bot_message", "file_comment"].includes(subtype)
-            // File messages are handled in a separate block.
-            && event.files === undefined
-        ;
+        const isText = [undefined, "bot_message", "file_comment"].includes(subtype);
         if (isText) {
-            return {
-                text: await this.parseText(event.text || "")
-            };
+            return await this.parseText(event.text || "");
         }
 
         if (subtype === "me_message" && event.text) {
             return {
-                text: {
-                    msgtype: "m.emote",
-                    body: event.text,
-                },
+                msgtype: "m.emote",
+                body: event.text,
             };
         }
 
-        if (event.files) {
-            const text = await this.parseText(event.text || "");
-            return {
-                text,
-                files: event.files,
-            };
-        }
-
-        return {};
+        return null;
     }
 
     private async parseText(text: string): Promise<TextualMessageEventContent> {
