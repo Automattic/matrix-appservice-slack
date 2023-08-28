@@ -25,7 +25,7 @@ import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
-import {MatrixClient, TextualMessageEventContent} from "matrix-bot-sdk";
+import {MatrixClient} from "matrix-bot-sdk";
 import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
@@ -1040,12 +1040,12 @@ export class BridgedRoom {
             }
         }
 
-        if (message.thread_ts !== undefined && message.text) {
+        if (parsedMessage.text && message.thread_ts !== undefined) {
             let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
             if (replyMEvent) {
                 replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
                 return await ghost.sendInThread(
-                    this.MatrixRoomId, message.text, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
+                    this.MatrixRoomId, parsedMessage.text, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
                 );
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);

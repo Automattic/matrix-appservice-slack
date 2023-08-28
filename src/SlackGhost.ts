@@ -349,7 +349,7 @@ export class SlackGhost {
 
     public async sendInThread(
         roomId: string,
-        text: string,
+        content: TextualMessageEventContent,
         slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
@@ -368,10 +368,7 @@ export class SlackGhost {
                     event_id: replyEvent.event_id,
                 },
             },
-            "msgtype": "m.text", // for those who just want to send the reply as-is
-            "body": this.prepareBody(text),
-            "format": "org.matrix.custom.html",
-            "formatted_body": this.prepareFormattedBody(text),
+            ...content,
         };
 
         msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs, slackThreadTs);
