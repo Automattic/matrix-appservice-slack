@@ -1052,12 +1052,6 @@ export class BridgedRoom {
                     log.warn(`Couldn't handle Slack file, ignoring:`, ex);
                 }
             }
-            // TODO: Currently Matrix lacks a way to upload a "captioned image",
-            //       so we just send a separate `m.image` and `m.text` message
-            // See https://github.com/matrix-org/matrix-doc/issues/906
-            if (parsedMessage.text) {
-                return ghost.sendText(this.matrixRoomId, parsedMessage.text, this.slackTeamId, channelId, eventTS);
-            }
         }
 
         if (parsedMessage.text) {
