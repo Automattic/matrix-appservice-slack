@@ -11,18 +11,17 @@ export class SlackMessageParser {
             return null;
         }
 
-        text = substitutions.slackToMatrix(text, subtype === "file_comment" ? event.file : undefined);
-
-        const isText = [undefined, "bot_message", "file_comment"].includes(subtype);
-        if (isText) {
-            return this.parseText(text);
-        }
-
         if (subtype === "me_message" && text) {
             return {
                 msgtype: "m.emote",
                 body: text,
             };
+        }
+
+        const isText = [undefined, "bot_message", "file_comment"].includes(subtype);
+        if (isText) {
+            text = substitutions.slackToMatrix(text, subtype === "file_comment" ? event.file : undefined);
+            return this.parseText(text);
         }
 
         return null;
