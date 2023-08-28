@@ -1044,13 +1044,11 @@ export class BridgedRoom {
         const parser = new SlackMessageParser();
         const parsedMessage = await parser.parse(message);
 
-        if (parsedMessage.files) {
-            for (const file of parsedMessage.files) {
-                try {
-                    await this.handleSlackMessageFile(file, eventTS, ghost);
-                } catch (ex) {
-                    log.warn(`Couldn't handle Slack file, ignoring:`, ex);
-                }
+        for (const file of parsedMessage.files || []) {
+            try {
+                await this.handleSlackMessageFile(file, eventTS, ghost);
+            } catch (ex) {
+                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
             }
         }
 
