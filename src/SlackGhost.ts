@@ -22,6 +22,7 @@ import { BotsInfoResponse, UsersInfoResponse } from "./SlackResponses";
 import { UserEntry, Datastore } from "./datastore/Models";
 import axios from "axios";
 import {IConfig} from "./IConfig";
+import {TextualMessageEventContent} from "matrix-bot-sdk";
 
 const log = new Logger("SlackGhost");
 
@@ -379,53 +380,12 @@ export class SlackGhost {
 
     public async sendText(
         roomId: string,
-        text: string,
+        content: TextualMessageEventContent,
         slackTeamId: string | undefined,
         slackRoomId: string,
         slackEventTs: string,
     ): Promise<void> {
-        // TODO: This is fixing plaintext mentions, but should be refactored.
-        // https://github.com/matrix-org/matrix-appservice-slack/issues/110
-        const body = text.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
-
-        // TODO: Slack's markdown is their own thing that isn't really markdown,
-        // but the only parser we have for it is slackdown. However, Matrix expects
-        // a variant of markdown that is in the realm of sanity. Currently text
-        // will be slack's markdown until we've got a slack -> markdown parser.
-        let formattedBody: string = Slackdown.parse(text);
-
-        // Parse blockquotes.
-        const blocks: string[] = [];
-        let currentQuote = "";
-        const quoteDelimiter = "> ";
-        for (const line of formattedBody.split("\n")) {
-            if (line.startsWith(quoteDelimiter)) {
-                currentQuote += line.replace(quoteDelimiter, "") + "<br>";
-            } else {
-                if (currentQuote !== "") {
-                    blocks.push(`<blockquote>${currentQuote}</blockquote>`);
-                }
-                blocks.push(`${line}<br>`);
-                currentQuote = "";
-            }
-        }
-        if (currentQuote !== "") {
-            blocks.push(`<blockquote>${currentQuote}</blockquote>`);
-        }
-
-        if (blocks.length > 0) {
-            formattedBody = blocks.join("");
-        }
-        formattedBody = formattedBody.replace("\n", "<br>");
-
-        const content = {
-            body,
-            format: "org.matrix.custom.html",
-            formatted_body: formattedBody,
-            msgtype: "m.text",
-        };
-
-        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
+        await this.sendMessage(roomId, content as unknown as Record<string, string>, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendMessage(

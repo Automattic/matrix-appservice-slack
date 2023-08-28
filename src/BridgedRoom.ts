@@ -26,6 +26,7 @@ import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
 import {MatrixClient} from "matrix-bot-sdk";
+import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
 
@@ -1042,7 +1043,9 @@ export class BridgedRoom {
 
         // If we are only handling text, send the text. File messages are handled in a separate block.
         if (["bot_message", "file_comment", undefined].includes(subtype) && message.files === undefined) {
-            return ghost.sendText(this.matrixRoomId, message.text!, this.slackTeamId, channelId, eventTS);
+            const parser = new SlackMessageParser();
+            const content = await parser.parse(message);
+            return ghost.sendText(this.matrixRoomId, content, this.slackTeamId, channelId, eventTS);
         } else if (subtype === "me_message") {
             return ghost.sendMessage(this.matrixRoomId, {
                 body: message.text!,
@@ -1134,7 +1137,9 @@ export class BridgedRoom {
             //   so we just send a separate `m.image` and `m.text` message
             // See https://github.com/matrix-org/matrix-doc/issues/906
             if (message.text) {
-                return ghost.sendText(this.matrixRoomId, message.text, this.slackTeamId, channelId, eventTS);
+                const parser = new SlackMessageParser();
+                const content = await parser.parse(message);
+                return ghost.sendText(this.matrixRoomId, content, this.slackTeamId, channelId, eventTS);
             }
         } else if (message.subtype === "group_join" && message.user) {
             /* Private rooms don't send the usual join events so we listen for these */
