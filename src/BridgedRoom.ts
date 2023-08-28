@@ -1029,6 +1029,17 @@ export class BridgedRoom {
                 subtype === "file_comment" ? message.file : undefined);
         }
 
+        const parser = new SlackMessageParser();
+        const parsedMessage = await parser.parse(message);
+
+        for (const file of parsedMessage.files || []) {
+            try {
+                await this.handleSlackMessageFile(file, eventTS, ghost);
+            } catch (ex) {
+                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
+            }
+        }
+
         if (message.thread_ts !== undefined && message.text) {
             let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
             if (replyMEvent) {
@@ -1038,17 +1049,6 @@ export class BridgedRoom {
                 );
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);
-            }
-        }
-
-        const parser = new SlackMessageParser();
-        const parsedMessage = await parser.parse(message);
-
-        for (const file of parsedMessage.files || []) {
-            try {
-                await this.handleSlackMessageFile(file, eventTS, ghost);
-            } catch (ex) {
-                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
             }
         }
 
