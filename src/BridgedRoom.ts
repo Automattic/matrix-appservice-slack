@@ -1052,7 +1052,6 @@ export class BridgedRoom {
 
             let formatted = `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
                 `<font color="green"> ${curr} </font> ${after}`;
-            const prevEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
 
             // If this edit is in a thread we need to inject the reply fallback, or
             // non-reply supporting clients will no longer show it as a reply.
@@ -1074,9 +1073,11 @@ export class BridgedRoom {
                     newFormattedBody = formattedFallback + newFormattedBody;
                 }
             }
+
             let replyContent: Record<string, unknown>|undefined;
             // Only include edit metadata in the message if we have the previous eventId,
             // otherwise just send the fallback reply text.
+            const prevEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
             if (prevEvent) {
                 replyContent = {
                     "m.new_content": {
