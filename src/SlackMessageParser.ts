@@ -4,6 +4,13 @@ import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/Messa
 import substitutions from "./substitutions";
 
 export class SlackMessageParser {
+    private readonly handledSubtypes = [
+        undefined, // Messages with no subtype
+        "bot_message",
+        "file_comment",
+        "message_changed",
+    ];
+
     parse(event: ISlackMessageEvent): TextualMessageEventContent | null {
         const subtype = event.subtype;
         let text = event.text;
@@ -18,8 +25,7 @@ export class SlackMessageParser {
             };
         }
 
-        const isText = [undefined, "bot_message", "file_comment"].includes(subtype);
-        if (isText) {
+        if (this.handledSubtypes.includes(subtype)) {
             text = substitutions.slackToMatrix(text, subtype === "file_comment" ? event.file : undefined);
             return this.parseText(text);
         }

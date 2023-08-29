@@ -1050,21 +1050,14 @@ export class BridgedRoom {
             return await ghost.sendText(this.matrixRoomId, parsedMessage, this.slackTeamId, channelId, eventTS);
         }
 
-        if (subtype === "message_changed") {
-            const previousMessage = ghost.prepareBody(substitutions.slackToMatrix(message.previous_message!.text!));
-            // We use message.text here rather than the proper message.message.text
-            // as we have added message.text ourselves and then transformed it.
-            const newMessageRich = substitutions.slackToMatrix(message.text!);
-            const newMessage = ghost.prepareBody(newMessageRich);
-
-            // The substitutions might make the messages the same
-            if (previousMessage === newMessage) {
-                log.debug("Ignoring edit message because messages are the same post-substitutions.");
+        if (parsedMessage && subtype === "message_changed" && message.previous_message) {
+            const previousMessage = parser.parse(message.previous_message);
+            if (!previousMessage || previousMessage === parsedMessage) {
+                log.debug("Ignoring edit message because messages are the same");
                 return;
             }
 
-            const edits = substitutions.makeDiff(previousMessage, newMessage);
-
+            const edits = substitutions.makeDiff(previousMessage.body, parsedMessage.body);
             const outtext = `(edited) ${edits.before} ${edits.prev} ${edits.after} => ` +
                 `${edits.before} ${edits.curr}  ${edits.after}`;
 
@@ -1074,15 +1067,15 @@ export class BridgedRoom {
             const after  = substitutions.htmlEscape(edits.after);
 
             let formatted = `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
-            `<font color="green"> ${curr} </font> ${after}`;
-            const prevEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message!.ts);
+                `<font color="green"> ${curr} </font> ${after}`;
+            const prevEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
 
             // If this edit is in a thread we need to inject the reply fallback, or
             // non-reply supporting clients will no longer show it as a reply.
             let body = ghost.prepareBody(outtext);
+            let newBody = parsedMessage.body;
+            let newFormattedBody = parsedMessage.formatted_body;
 
-            let newBody = ghost.prepareBody(newMessageRich);
-            let newFormattedBody = ghost.prepareFormattedBody(newMessageRich);
             if (message.message && message.message.thread_ts !== undefined) {
                 let replyEvent = await this.getReplyEvent(
                     this.MatrixRoomId, message.message as unknown as ISlackMessageEvent, this.slackChannelId!,
