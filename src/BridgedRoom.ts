@@ -1046,10 +1046,8 @@ export class BridgedRoom {
             }
         }
 
-        if (parsedMessage) {
-            if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
-                return await ghost.sendText(this.matrixRoomId, parsedMessage, this.slackTeamId, channelId, eventTS);
-            }
+        if (parsedMessage && ["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
+            return await ghost.sendText(this.matrixRoomId, parsedMessage, this.slackTeamId, channelId, eventTS);
         }
 
         if (subtype === "message_changed") {

@@ -11,7 +11,7 @@ export class SlackMessageParser {
             return null;
         }
 
-        if (subtype === "me_message" && text) {
+        if (subtype === "me_message") {
             return {
                 msgtype: "m.emote",
                 body: text,
