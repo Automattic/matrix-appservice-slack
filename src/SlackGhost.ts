@@ -15,7 +15,6 @@ limitations under the License.
 */
 
 import { Logger, Intent } from "matrix-appservice-bridge";
-import * as Slackdown from "Slackdown";
 import { ISlackUser } from "./BaseSlackHandler";
 import { WebClient } from "@slack/web-api";
 import { BotsInfoResponse, UsersInfoResponse } from "./SlackResponses";
@@ -29,7 +28,7 @@ const log = new Logger("SlackGhost");
 // How long in milliseconds to cache user info lookups.
 const USER_CACHE_TIMEOUT = 10 * 60 * 1000;  // 10 minutes
 
-interface IMatrixReplyEvent {
+export interface IMatrixReplyEvent {
     sender: string;
     event_id: string;
     content: {
@@ -337,16 +336,6 @@ export class SlackGhost {
         return true;
     }
 
-    public prepareBody(body: string): string {
-        // TODO: This is fixing plaintext mentions, but should be refactored.
-        // See https://github.com/matrix-org/matrix-appservice-slack/issues/110
-        return body.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
-    }
-
-    public prepareFormattedBody(body: string): string {
-        return Slackdown.parse(body);
-    }
-
     public async sendInThread(
         roomId: string,
         content: TextualMessageEventContent,
@@ -532,23 +521,5 @@ export class SlackGhost {
 
     public bumpATime(): void {
         this.atime = Date.now() / 1000;
-    }
-
-    public getFallbackHtml(roomId: string, replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        let originalHtml = (replyEvent.content ? replyEvent.content.formatted_body : "") || null;
-        if (originalHtml === null) {
-            originalHtml = originalBody;
-        }
-        return "<mx-reply><blockquote>"
-              + `<a href="https://matrix.to/#/${roomId}/${replyEvent.event_id}">In reply to</a>`
-              + `<a href="https://matrix.to/#/${replyEvent.sender}">${replyEvent.sender}</a>`
-              + `<br />${originalHtml}`
-              + "</blockquote></mx-reply>";
-    }
-
-    public getFallbackText(replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        return `> <${replyEvent.sender}> ${originalBody.split("\n").join("\n> ")}`;
     }
 }

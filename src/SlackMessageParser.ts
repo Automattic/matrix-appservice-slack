@@ -2,6 +2,7 @@ import {ISlackMessageEvent} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions from "./substitutions";
+import {IMatrixReplyEvent} from "./SlackGhost";
 
 export class SlackMessageParser {
     private readonly handledSubtypes = [
@@ -12,7 +13,9 @@ export class SlackMessageParser {
         "message_changed",
     ];
 
-    parse(message: ISlackMessageEvent): TextualMessageEventContent | null {
+    constructor(private matrixRoomId: string) {}
+
+    parse(message: ISlackMessageEvent, replyEvent: IMatrixReplyEvent | null): TextualMessageEventContent | null {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
             return null;
@@ -35,26 +38,42 @@ export class SlackMessageParser {
 
         if (subtype === "message_changed" && message.previous_message && message.previous_message.text) {
             const parsedPreviousMessage = this.parseText(message.previous_message.text);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage);
+            return this.parseEdit(parsedMessage, parsedPreviousMessage, replyEvent);
         }
 
         return parsedMessage;
     }
 
-    private parseEdit(parsedMessage: TextualMessageEventContent, parsedPreviousMessage: TextualMessageEventContent) {
+    private parseEdit(
+        parsedMessage: TextualMessageEventContent,
+        parsedPreviousMessage: TextualMessageEventContent,
+        replyEvent: IMatrixReplyEvent | null
+    ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
         const prev   = substitutions.htmlEscape(edits.prev);
         const curr   = substitutions.htmlEscape(edits.curr);
         const before = substitutions.htmlEscape(edits.before);
         const after  = substitutions.htmlEscape(edits.after);
 
-        const body =
+        let body =
             `(edited) ${edits.before} ${edits.prev} ${edits.after} => ` +
             `${edits.before} ${edits.curr} ${edits.after}`;
 
-        const formattedBody =
+        let formattedBody =
             `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
             `<font color="green"> ${curr} </font> ${after}`;
+
+        let newBody = parsedMessage.body;
+        let newFormattedBody =  parsedMessage.formatted_body;
+
+        if (replyEvent) {
+            const bodyFallback = this.getFallbackText(replyEvent);
+            const formattedFallback = this.getFallbackHtml(this.matrixRoomId, replyEvent);
+            body = `${bodyFallback}\n\n${body}`;
+            formattedBody = formattedFallback + formattedBody;
+            newBody = bodyFallback + parsedMessage.body;
+            newFormattedBody = formattedFallback + parsedMessage.formatted_body;
+        }
 
         return {
             msgtype: "m.text",
@@ -64,8 +83,8 @@ export class SlackMessageParser {
             "m.new_content": {
                 msgtype: "m.text",
                 format: "org.matrix.custom.html",
-                body: parsedMessage.body,
-                formatted_body: parsedMessage.formatted_body,
+                body: newBody,
+                formatted_body: newFormattedBody,
             }
         };
     }
@@ -111,5 +130,23 @@ export class SlackMessageParser {
             body,
             formatted_body: formattedBody,
         };
+    }
+
+    private getFallbackHtml(roomId: string, replyEvent: IMatrixReplyEvent): string {
+        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
+        let originalHtml = (replyEvent.content ? replyEvent.content.formatted_body : "") || null;
+        if (originalHtml === null) {
+            originalHtml = originalBody;
+        }
+        return "<mx-reply><blockquote>"
+            + `<a href="https://matrix.to/#/${roomId}/${replyEvent.event_id}">In reply to</a>`
+            + `<a href="https://matrix.to/#/${replyEvent.sender}">${replyEvent.sender}</a>`
+            + `<br />${originalHtml}`
+            + "</blockquote></mx-reply>";
+    }
+
+    private getFallbackText(replyEvent: IMatrixReplyEvent): string {
+        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
+        return `> <${replyEvent.sender}> ${originalBody.split("\n").join("\n> ")}`;
     }
 }

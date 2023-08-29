@@ -16,7 +16,7 @@ limitations under the License.
 
 import axios from "axios";
 import { Logger, Intent } from "matrix-appservice-bridge";
-import { SlackGhost } from "./SlackGhost";
+import {IMatrixReplyEvent, SlackGhost} from "./SlackGhost";
 import { Main, METRIC_SENT_MESSAGES } from "./Main";
 import { default as substitutions, getFallbackForMissingEmoji, IMatrixToSlackResult } from "./substitutions";
 import * as emoji from "node-emoji";
@@ -1031,7 +1031,7 @@ export class BridgedRoom {
             }
         }
 
-        let replyEvent;
+        let replyEvent: IMatrixReplyEvent | null = null;
         // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
         if (message.thread_ts || (message.message && message.message.thread_ts)) {
             replyEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.slackChannelId!);
@@ -1042,13 +1042,13 @@ export class BridgedRoom {
             }
         }
 
-        let previousEvent;
+        let previousEvent: EventEntry | null = null;
         if (message.previous_message?.ts) {
             previousEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
         }
 
-        const parser = new SlackMessageParser();
-        const parsedMessage = parser.parse(message);
+        const parser = new SlackMessageParser(this.MatrixRoomId);
+        const parsedMessage = parser.parse(message, replyEvent);
 
         if (parsedMessage && parsedMessage["m.new_content"] && previousEvent) {
             // It's an edit, we need to set the id of the event we're editing.
@@ -1058,69 +1058,6 @@ export class BridgedRoom {
             };
             const record = parsedMessage as unknown as Record<string, string>;
             return ghost.sendMessage(this.MatrixRoomId, record, this.slackTeamId, channelId, eventTS);
-        }
-
-        if (parsedMessage && subtype === "message_changed" && message.previous_message) {
-            const previousMessage = parser.parse(message.previous_message);
-            if (!previousMessage || previousMessage === parsedMessage) {
-                log.debug("Ignoring edit message because messages are the same");
-                return;
-            }
-
-            const edits = substitutions.makeDiff(previousMessage.body, parsedMessage.body);
-            const outtext = `(edited) ${edits.before} ${edits.prev} ${edits.after} => ` +
-                `${edits.before} ${edits.curr}  ${edits.after}`;
-
-            const prev   = substitutions.htmlEscape(edits.prev);
-            const curr   = substitutions.htmlEscape(edits.curr);
-            const before = substitutions.htmlEscape(edits.before);
-            const after  = substitutions.htmlEscape(edits.after);
-
-            let formatted = `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
-                `<font color="green"> ${curr} </font> ${after}`;
-
-            // If this edit is in a thread we need to inject the reply fallback, or
-            // non-reply supporting clients will no longer show it as a reply.
-            let body = ghost.prepareBody(outtext);
-            let newBody = parsedMessage.body;
-            let newFormattedBody = parsedMessage.formatted_body;
-
-            if (replyEvent) {
-                const bodyFallback = ghost.getFallbackText(replyEvent);
-                const formattedFallback = ghost.getFallbackHtml(this.MatrixRoomId, replyEvent);
-                body = `${bodyFallback}\n\n${body}`;
-                formatted = formattedFallback + formatted;
-                newBody = bodyFallback + newBody;
-                newFormattedBody = formattedFallback + newFormattedBody;
-            }
-
-            let newContent: Record<string, unknown>|undefined;
-            // Only include edit metadata in the message if we have the previous eventId,
-            // otherwise just send the fallback reply text.
-            if (previousEvent) {
-                newContent = {
-                    "m.new_content": {
-                        body: newBody,
-                        format: "org.matrix.custom.html",
-                        formatted_body: newFormattedBody,
-                        msgtype: "m.text",
-                    },
-                    "m.relates_to": {
-                        event_id: previousEvent.eventId,
-                        rel_type: "m.replace",
-                    },
-                };
-            } else {
-                log.warn("Got edit but no previous matrix events were found");
-            }
-            const matrixContent = {
-                body,
-                format: "org.matrix.custom.html",
-                formatted_body: formatted,
-                msgtype: "m.text",
-                ...newContent,
-            };
-            return ghost.sendMessage(this.MatrixRoomId, matrixContent, this.slackTeamId, channelId, eventTS);
         }
 
         if (parsedMessage && message.thread_ts !== undefined && replyEvent) {
@@ -1159,7 +1096,7 @@ export class BridgedRoom {
         }));
     }
 
-    private async getReplyEvent(roomID: string, message: ISlackMessageEvent, slackRoomID: string) {
+    private async getReplyEvent(roomID: string, message: ISlackMessageEvent, slackRoomID: string): Promise<IMatrixReplyEvent | null> {
         // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
         if (message.subtype === "message_changed" && message.message) {
             message = message.message;
