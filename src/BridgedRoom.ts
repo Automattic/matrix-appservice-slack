@@ -1067,7 +1067,8 @@ export class BridgedRoom {
         }
 
         if (parsedMessage && ["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
-            return await ghost.sendText(this.matrixRoomId, parsedMessage, this.slackTeamId, channelId, eventTS);
+            const record = parsedMessage as unknown as Record<string, string>;
+            return await ghost.sendMessage(this.matrixRoomId, record, this.slackTeamId, channelId, eventTS);
         }
 
         if (message.subtype === "group_join" && message.user) {
