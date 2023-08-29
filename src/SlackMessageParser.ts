@@ -14,12 +14,12 @@ export class SlackMessageParser {
 
     parse(message: ISlackMessageEvent): TextualMessageEventContent | null {
         const subtype = message.subtype;
-        let text = message.text;
-        if (!text) {
+        if (!this.handledSubtypes.includes(subtype)) {
             return null;
         }
 
-        if (!this.handledSubtypes.includes(subtype)) {
+        let text = message.text;
+        if (!text) {
             return null;
         }
 
