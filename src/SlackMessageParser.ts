@@ -6,6 +6,7 @@ import substitutions from "./substitutions";
 export class SlackMessageParser {
     private readonly handledSubtypes = [
         undefined, // Messages with no subtype
+        "me_message",
         "bot_message",
         "file_comment",
         "message_changed",
@@ -18,6 +19,10 @@ export class SlackMessageParser {
             return null;
         }
 
+        if (!this.handledSubtypes.includes(subtype)) {
+            return null;
+        }
+
         if (subtype === "me_message") {
             return {
                 msgtype: "m.emote",
@@ -25,12 +30,19 @@ export class SlackMessageParser {
             };
         }
 
-        if (this.handledSubtypes.includes(subtype)) {
-            text = substitutions.slackToMatrix(text, subtype === "file_comment" ? message.file : undefined);
-            return this.parseText(text);
+        text = substitutions.slackToMatrix(text, subtype === "file_comment" ? message.file : undefined);
+        const parsedMessage = this.parseText(text);
+
+        if (subtype === "message_changed" && message.previous_message && message.previous_message.text) {
+            const parsedPreviousMessage = this.parseText(message.previous_message.text);
+            this.parseEdit(parsedMessage, parsedPreviousMessage);
         }
 
-        return null;
+        return parsedMessage;
+    }
+
+    private parseEdit(parsedMessage: TextualMessageEventContent, parsedPreviousMessage: TextualMessageEventContent) {
+        // TODO
     }
 
     private parseText(text: string): TextualMessageEventContent {
