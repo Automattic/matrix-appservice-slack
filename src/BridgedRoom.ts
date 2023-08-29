@@ -1023,6 +1023,11 @@ export class BridgedRoom {
             log.error(`Error storing activity metrics`, err);
         });
 
+        // Private rooms don't send the usual join events, so we listen for these here.
+        if (subtype === "group_join" && message.user) {
+            return this.onSlackUserJoin(message.user, message.inviter);
+        }
+
         for (const file of message.files || []) {
             try {
                 await this.handleSlackMessageFile(file, eventTS, ghost);
@@ -1071,12 +1076,7 @@ export class BridgedRoom {
             return await ghost.sendMessage(this.matrixRoomId, record, this.slackTeamId, channelId, eventTS);
         }
 
-        if (message.subtype === "group_join" && message.user) {
-            /* Private rooms don't send the usual join events so we listen for these */
-            return this.onSlackUserJoin(message.user, message.inviter);
-        } else {
-            log.warn(`Ignoring message with subtype: ${subtype}`);
-        }
+        log.warn(`Ignoring message with subtype: ${subtype}`);
     }
 
     public async onMatrixTyping(currentlyTyping: string[]) {
