@@ -1032,13 +1032,14 @@ export class BridgedRoom {
         }
 
         let replyEvent;
-        if (message.message && message.message.thread_ts !== undefined) {
-            replyEvent = await this.getReplyEvent(
-                this.MatrixRoomId,
-                message.message as unknown as ISlackMessageEvent,
-                this.slackChannelId!,
-            );
-            replyEvent = await this.stripMatrixReplyFallback(replyEvent);
+        // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
+        if (message.thread_ts || (message.message && message.message.thread_ts)) {
+            replyEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.slackChannelId!);
+            if (replyEvent) {
+                replyEvent = await this.stripMatrixReplyFallback(replyEvent);
+            } else {
+                log.warn("Could not find matrix event for parent reply", message.thread_ts);
+            }
         }
 
         const parser = new SlackMessageParser();
@@ -1108,16 +1109,10 @@ export class BridgedRoom {
             return ghost.sendMessage(this.MatrixRoomId, matrixContent, this.slackTeamId, channelId, eventTS);
         }
 
-        if (parsedMessage && message.thread_ts !== undefined) {
-            let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
-            if (replyMEvent) {
-                replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
-                return await ghost.sendInThread(
-                    this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
-                );
-            } else {
-                log.warn("Could not find matrix event for parent reply", message.thread_ts);
-            }
+        if (parsedMessage && message.thread_ts !== undefined && replyEvent) {
+            return await ghost.sendInThread(
+                this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId!, eventTS, replyEvent, message.thread_ts,
+            );
         }
 
         if (parsedMessage && ["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
@@ -1151,6 +1146,11 @@ export class BridgedRoom {
     }
 
     private async getReplyEvent(roomID: string, message: ISlackMessageEvent, slackRoomID: string) {
+        // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
+        if (message.subtype === "message_changed" && message.message) {
+            message = message.message;
+        }
+
         // Get parent event
         const dataStore = this.main.datastore;
         const parentEvent = await dataStore.getEventBySlackId(slackRoomID, message.thread_ts!);
