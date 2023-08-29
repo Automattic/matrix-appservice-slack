@@ -1031,6 +1031,16 @@ export class BridgedRoom {
             }
         }
 
+        let replyEvent;
+        if (message.message && message.message.thread_ts !== undefined) {
+            replyEvent = await this.getReplyEvent(
+                this.MatrixRoomId,
+                message.message as unknown as ISlackMessageEvent,
+                this.slackChannelId!,
+            );
+            replyEvent = await this.stripMatrixReplyFallback(replyEvent);
+        }
+
         const parser = new SlackMessageParser();
         const parsedMessage = parser.parse(message);
 
@@ -1059,19 +1069,13 @@ export class BridgedRoom {
             let newBody = parsedMessage.body;
             let newFormattedBody = parsedMessage.formatted_body;
 
-            if (message.message && message.message.thread_ts !== undefined) {
-                let replyEvent = await this.getReplyEvent(
-                    this.MatrixRoomId, message.message as unknown as ISlackMessageEvent, this.slackChannelId!,
-                );
-                replyEvent = await this.stripMatrixReplyFallback(replyEvent);
-                if (replyEvent) {
-                    const bodyFallback = ghost.getFallbackText(replyEvent);
-                    const formattedFallback = ghost.getFallbackHtml(this.MatrixRoomId, replyEvent);
-                    body = `${bodyFallback}\n\n${body}`;
-                    formatted = formattedFallback + formatted;
-                    newBody = bodyFallback + newBody;
-                    newFormattedBody = formattedFallback + newFormattedBody;
-                }
+            if (replyEvent) {
+                const bodyFallback = ghost.getFallbackText(replyEvent);
+                const formattedFallback = ghost.getFallbackHtml(this.MatrixRoomId, replyEvent);
+                body = `${bodyFallback}\n\n${body}`;
+                formatted = formattedFallback + formatted;
+                newBody = bodyFallback + newBody;
+                newFormattedBody = formattedFallback + newFormattedBody;
             }
 
             let replyContent: Record<string, unknown>|undefined;
