@@ -1034,22 +1034,6 @@ export class BridgedRoom {
         const parser = new SlackMessageParser();
         const parsedMessage = parser.parse(message);
 
-        if (parsedMessage && message.thread_ts !== undefined) {
-            let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
-            if (replyMEvent) {
-                replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
-                return await ghost.sendInThread(
-                    this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
-                );
-            } else {
-                log.warn("Could not find matrix event for parent reply", message.thread_ts);
-            }
-        }
-
-        if (parsedMessage && ["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
-            return await ghost.sendText(this.matrixRoomId, parsedMessage, this.slackTeamId, channelId, eventTS);
-        }
-
         if (parsedMessage && subtype === "message_changed" && message.previous_message) {
             const previousMessage = parser.parse(message.previous_message);
             if (!previousMessage || previousMessage === parsedMessage) {
@@ -1117,7 +1101,25 @@ export class BridgedRoom {
                 ...replyContent,
             };
             return ghost.sendMessage(this.MatrixRoomId, matrixContent, this.slackTeamId, channelId, eventTS);
-        } else if (message.subtype === "group_join" && message.user) {
+        }
+
+        if (parsedMessage && message.thread_ts !== undefined) {
+            let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
+            if (replyMEvent) {
+                replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
+                return await ghost.sendInThread(
+                    this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
+                );
+            } else {
+                log.warn("Could not find matrix event for parent reply", message.thread_ts);
+            }
+        }
+
+        if (parsedMessage && ["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
+            return await ghost.sendText(this.matrixRoomId, parsedMessage, this.slackTeamId, channelId, eventTS);
+        }
+
+        if (message.subtype === "group_join" && message.user) {
             /* Private rooms don't send the usual join events so we listen for these */
             return this.onSlackUserJoin(message.user, message.inviter);
         } else {
