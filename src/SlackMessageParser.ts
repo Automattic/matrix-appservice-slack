@@ -11,9 +11,9 @@ export class SlackMessageParser {
         "message_changed",
     ];
 
-    parse(event: ISlackMessageEvent): TextualMessageEventContent | null {
-        const subtype = event.subtype;
-        let text = event.text;
+    parse(message: ISlackMessageEvent): TextualMessageEventContent | null {
+        const subtype = message.subtype;
+        let text = message.text;
         if (!text) {
             return null;
         }
@@ -26,7 +26,7 @@ export class SlackMessageParser {
         }
 
         if (this.handledSubtypes.includes(subtype)) {
-            text = substitutions.slackToMatrix(text, subtype === "file_comment" ? event.file : undefined);
+            text = substitutions.slackToMatrix(text, subtype === "file_comment" ? message.file : undefined);
             return this.parseText(text);
         }
 
