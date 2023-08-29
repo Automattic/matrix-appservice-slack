@@ -1042,6 +1042,11 @@ export class BridgedRoom {
             }
         }
 
+        let previousEvent;
+        if (message.previous_message?.ts) {
+            previousEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
+        }
+
         const parser = new SlackMessageParser();
         const parsedMessage = parser.parse(message);
 
@@ -1082,8 +1087,7 @@ export class BridgedRoom {
             let replyContent: Record<string, unknown>|undefined;
             // Only include edit metadata in the message if we have the previous eventId,
             // otherwise just send the fallback reply text.
-            const prevEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
-            if (prevEvent) {
+            if (previousEvent) {
                 replyContent = {
                     "m.new_content": {
                         body: newBody,
@@ -1092,7 +1096,7 @@ export class BridgedRoom {
                         msgtype: "m.text",
                     },
                     "m.relates_to": {
-                        event_id: prevEvent.eventId,
+                        event_id: previousEvent.eventId,
                         rel_type: "m.replace",
                     },
                 };
