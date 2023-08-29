@@ -1050,6 +1050,16 @@ export class BridgedRoom {
         const parser = new SlackMessageParser();
         const parsedMessage = parser.parse(message);
 
+        if (parsedMessage && parsedMessage["m.new_content"] && previousEvent) {
+            // It's an edit, we need to set the id of the event we're editing.
+            parsedMessage["m.relates_to"] = {
+                rel_type: "m.replace",
+                event_id: previousEvent.eventId,
+            };
+            const record = parsedMessage as unknown as Record<string, string>;
+            return ghost.sendMessage(this.MatrixRoomId, record, this.slackTeamId, channelId, eventTS);
+        }
+
         if (parsedMessage && subtype === "message_changed" && message.previous_message) {
             const previousMessage = parser.parse(message.previous_message);
             if (!previousMessage || previousMessage === parsedMessage) {

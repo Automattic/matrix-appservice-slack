@@ -35,14 +35,39 @@ export class SlackMessageParser {
 
         if (subtype === "message_changed" && message.previous_message && message.previous_message.text) {
             const parsedPreviousMessage = this.parseText(message.previous_message.text);
-            this.parseEdit(parsedMessage, parsedPreviousMessage);
+            return this.parseEdit(parsedMessage, parsedPreviousMessage);
         }
 
         return parsedMessage;
     }
 
     private parseEdit(parsedMessage: TextualMessageEventContent, parsedPreviousMessage: TextualMessageEventContent) {
-        // TODO
+        const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
+        const prev   = substitutions.htmlEscape(edits.prev);
+        const curr   = substitutions.htmlEscape(edits.curr);
+        const before = substitutions.htmlEscape(edits.before);
+        const after  = substitutions.htmlEscape(edits.after);
+
+        const body =
+            `(edited) ${edits.before} ${edits.prev} ${edits.after} => ` +
+            `${edits.before} ${edits.curr} ${edits.after}`;
+
+        const formattedBody =
+            `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
+            `<font color="green"> ${curr} </font> ${after}`;
+
+        return {
+            msgtype: "m.text",
+            format: "org.matrix.custom.html",
+            body,
+            formatted_body: formattedBody,
+            "m.new_content": {
+                msgtype: "m.text",
+                format: "org.matrix.custom.html",
+                body: parsedMessage.body,
+                formatted_body: parsedMessage.formatted_body,
+            }
+        };
     }
 
     private parseText(text: string): TextualMessageEventContent {
