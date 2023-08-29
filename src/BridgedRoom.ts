@@ -1084,11 +1084,11 @@ export class BridgedRoom {
                 newFormattedBody = formattedFallback + newFormattedBody;
             }
 
-            let replyContent: Record<string, unknown>|undefined;
+            let newContent: Record<string, unknown>|undefined;
             // Only include edit metadata in the message if we have the previous eventId,
             // otherwise just send the fallback reply text.
             if (previousEvent) {
-                replyContent = {
+                newContent = {
                     "m.new_content": {
                         body: newBody,
                         format: "org.matrix.custom.html",
@@ -1108,7 +1108,7 @@ export class BridgedRoom {
                 format: "org.matrix.custom.html",
                 formatted_body: formatted,
                 msgtype: "m.text",
-                ...replyContent,
+                ...newContent,
             };
             return ghost.sendMessage(this.MatrixRoomId, matrixContent, this.slackTeamId, channelId, eventTS);
         }
