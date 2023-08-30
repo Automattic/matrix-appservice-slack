@@ -1,4 +1,4 @@
-import {ISlackMessageEvent} from "./BaseSlackHandler";
+import {ISlackFile, ISlackMessageEvent} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
@@ -83,14 +83,8 @@ export class SlackMessageParser {
             return null;
         }
 
-        // if we have a file, attempt to get the direct link to the file.
-        const file = subtype === "file_comment" ? message.file : undefined;
-        if (file && file.permalink_public && file.url_private && file.permalink) {
-            const url = this.getSlackFileUrl({
-                permalink_public: file.permalink_public,
-                url_private: file.url_private,
-            });
-            text = url ? text.replace(file.permalink, url) : text;
+        if (subtype === "file_comment" && message.file) {
+            text = this.replaceFileLinks(text, message.file);
         }
 
         const teamDomain = await this.main.getTeamDomainForMessage(message);
@@ -297,17 +291,16 @@ export class SlackMessageParser {
         return channel;
     }
 
-    private getSlackFileUrl(file: {
-        permalink_public: string,
-        url_private: string,
-    }): string | undefined {
+    private replaceFileLinks(text: string, file: ISlackFile): string {
+        if (!file.permalink_public || !file.url_private || !file.permalink) {
+            return text;
+        }
+
         const pubSecret = file.permalink_public.match(/https?:\/\/slack-files.com\/[^-]*-[^-]*-(.*)/);
-        if (!pubSecret) {
-            throw Error("Could not determine pub_secret");
+        if (!pubSecret || pubSecret.length === 0) {
+            return text;
         }
-        // try to get direct link to the file
-        if (pubSecret && pubSecret.length > 0) {
-            return `${file.url_private}?pub_secret=${pubSecret[1]}`;
-        }
+
+        return text.replace(file.permalink, `${file.url_private}?pub_secret=${pubSecret[1]}`);
     }
 }
