@@ -14,17 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Logger } from "matrix-appservice-bridge";
 import { Main } from "./Main";
-import { WebClient } from "@slack/web-api";
-import { FilesSharedPublicURLResponse, ConversationsInfoResponse } from "./SlackResponses";
-
-const log = new Logger("BaseSlackHandler");
-
-const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
-
-// (if the message is an emote, the format is <@ID|nick>, but in normal msgs it's just <@ID>
-const USER_ID_REGEX = /<@(\w+)\|?\w*?>/g;
 
 export const INTERNAL_ID_LEN = 32;
 export const HTTP_CODES = {
@@ -34,7 +24,6 @@ export const HTTP_CODES = {
     OK: 200,
     SERVER_ERROR: 500,
 };
-
 
 export interface ISlackEvent {
     type: string;
