@@ -1,4 +1,4 @@
-import {ISlackFile, ISlackMessageEvent} from "./BaseSlackHandler";
+import {ISlackEventMessageAttachment, ISlackMessageEvent, ISlackFile} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
@@ -61,24 +61,14 @@ export class SlackMessageParser {
             };
         }
 
-        let text = "";
+        let text: string;
         if (message.attachments) {
-            // noinspection LoopStatementThatDoesntLoopJS
-            for (const attachment of message.attachments) {
-                text = attachment.fallback;
-                if (attachment.text) {
-                    text = `${text}: ${attachment.text}`;
-                    if (attachment.title_link) {
-                        text = `${text} [${attachment.title_link}]`;
-                    }
-                }
-                break;
-            }
+            text = this.parseAttachments(message.attachments);
         } else {
             text = message.text || "";
         }
 
-        if (!text) {
+        if (text === "") {
             return null;
         }
 
@@ -95,6 +85,24 @@ export class SlackMessageParser {
         }
 
         return parsedMessage;
+    }
+
+    private parseAttachments(attachments: ISlackEventMessageAttachment[]): string {
+        let text = "";
+
+        // noinspection LoopStatementThatDoesntLoopJS
+        for (const attachment of attachments) {
+            text = attachment.fallback;
+            if (attachment.text) {
+                text = `${text}: ${attachment.text}`;
+                if (attachment.title_link) {
+                    text = `${text} [${attachment.title_link}]`;
+                }
+            }
+            break;
+        }
+
+        return text;
     }
 
     private async doParse(
