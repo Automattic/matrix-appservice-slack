@@ -999,8 +999,11 @@ export class BridgedRoom {
     }
 
     private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient: WebClient) {
+        if (!this.SlackChannelId) {
+            throw Error("SlackChannelId must be set");
+        }
+
         const eventTS = message.event_ts || message.ts;
-        const channelId = this.slackChannelId!;
 
         // Dedupe across RTM/Event streams
         this.addRecentSlackMessage(message.ts);
@@ -1042,7 +1045,7 @@ export class BridgedRoom {
         let replyEvent: IMatrixReplyEvent | null = null;
         // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
         if (message.thread_ts || (message.message && message.message.thread_ts)) {
-            replyEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.slackChannelId!);
+            replyEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
             if (replyEvent) {
                 replyEvent = await this.stripMatrixReplyFallback(replyEvent);
             } else {
@@ -1052,7 +1055,7 @@ export class BridgedRoom {
 
         let previousEvent: EventEntry | null = null;
         if (message.previous_message?.ts) {
-            previousEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
+            previousEvent = await this.main.datastore.getEventBySlackId(this.SlackChannelId, message.previous_message.ts);
         }
 
         const parser = new SlackMessageParser(
@@ -1076,18 +1079,18 @@ export class BridgedRoom {
                 event_id: previousEvent.eventId,
             };
             const record = parsedMessage as unknown as Record<string, string>;
-            return ghost.sendMessage(this.MatrixRoomId, record, this.slackTeamId, channelId, eventTS);
+            return ghost.sendMessage(this.MatrixRoomId, record, this.slackTeamId, this.SlackChannelId, eventTS);
         }
 
         if (message.thread_ts !== undefined && replyEvent) {
             return await ghost.sendInThread(
-                this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId!, eventTS, replyEvent, message.thread_ts,
+                this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId, eventTS, replyEvent, message.thread_ts,
             );
         }
 
         if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
             const record = parsedMessage as unknown as Record<string, string>;
-            return await ghost.sendMessage(this.matrixRoomId, record, this.slackTeamId, channelId, eventTS);
+            return await ghost.sendMessage(this.matrixRoomId, record, this.slackTeamId, this.SlackChannelId, eventTS);
         }
     }
 
