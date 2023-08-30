@@ -69,18 +69,27 @@ export class SlackMessageParser {
         const teamDomain = await this.main.getTeamDomainForMessage(message);
 
         const file = subtype === "file_comment" ? message.file : undefined;
-        const parsedMessage = await this.doParse(text, slackClient, teamDomain, file);
+        const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain, file);
 
         if (subtype === "message_changed" && message.previous_message?.text) {
-            const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, teamDomain);
+            const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
             return this.parseEdit(parsedMessage, parsedPreviousMessage, replyEvent);
         }
 
         return parsedMessage;
     }
 
-    private async doParse(body: string, slackClient: WebClient, teamDomain?: string, file?: ISlackFile): Promise<TextualMessageEventContent> {
+    private async doParse(
+        body: string,
+        slackClient: WebClient,
+        channelId: string,
+        teamDomain: string | undefined,
+        file?: ISlackFile,
+    ): Promise<TextualMessageEventContent> {
         body = await this.replaceChannelIdsWithNames(body, slackClient);
+        if (teamDomain) {
+            body = await this.replaceUserIdsWithNames(body, teamDomain, channelId);
+        }
 
         body = body.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
         body = body.replace("<!channel>", "@room");
@@ -234,14 +243,7 @@ export class SlackMessageParser {
         return text;
     }
 
-    private async replaceUserIdsWithNames(message: ISlackMessageEvent, text: string): Promise<string> {
-        const teamDomain = await this.main.getTeamDomainForMessage(message);
-
-        if (!teamDomain) {
-            log.warn(`Cannot replace user ids with names for ${message.ts}. Unable to determine the teamDomain.`);
-            return text;
-        }
-
+    private async replaceUserIdsWithNames(text: string, teamDomain: string, channelId: string): Promise<string> {
         let match: RegExpExecArray|null = null;
         while ((match = USER_ID_REGEX.exec(text)) !== null) {
             // foreach userId, pull out the ID
@@ -256,7 +258,7 @@ export class SlackMessageParser {
             if (!users) {
                 log.warn("Mentioned user not in store. Looking up display name from slack.");
                 // if the user is not in the store then we look up the displayname
-                displayName = await this.ghostStore.getNullGhostDisplayName(message.channel, id);
+                displayName = await this.ghostStore.getNullGhostDisplayName(channelId, id);
                 // If the user is not in the room, we can't pills them, we have to just plain text mention them.
                 text = text.slice(0, match.index) + displayName + text.slice(match.index + match[0].length);
             } else {
