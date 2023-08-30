@@ -61,24 +61,23 @@ export class SlackMessageParser {
             };
         }
 
+        let text = "";
         if (message.attachments) {
             // noinspection LoopStatementThatDoesntLoopJS
             for (const attachment of message.attachments) {
-                message.text = attachment.fallback;
+                text = attachment.fallback;
                 if (attachment.text) {
-                    message.text = `${message.text}: ${attachment.text}`;
+                    text = `${text}: ${attachment.text}`;
                     if (attachment.title_link) {
-                        message.text = `${message.text} [${attachment.title_link}]`;
+                        text = `${text} [${attachment.title_link}]`;
                     }
                 }
                 break;
             }
-            if (message.text === "") {
-                return null;
-            }
+        } else {
+            text = message.text || "";
         }
 
-        let text = message.text;
         if (!text) {
             return null;
         }
