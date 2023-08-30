@@ -104,7 +104,7 @@ export class SlackMessageParser {
         // but the only parser we have for it is slackdown. However, Matrix expects
         // a variant of markdown that is in the realm of sanity. Currently text
         // will be slack's markdown until we've got a slack -> markdown parser.
-        let formattedBody: string = Slackdown.parse(text);
+        let formattedBody: string = Slackdown.parse(body);
 
         // Parse blockquotes.
         const blocks: string[] = [];
