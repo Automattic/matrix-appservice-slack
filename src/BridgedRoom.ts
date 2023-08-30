@@ -1052,7 +1052,14 @@ export class BridgedRoom {
             previousEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message.ts);
         }
 
-        const parser = new SlackMessageParser(this.MatrixRoomId);
+        const parser = new SlackMessageParser(
+            this.MatrixRoomId,
+            this.main.botIntent,
+            this.main.datastore,
+            this.main.rooms,
+            this.main.ghostStore,
+            this.main,
+        );
         const parsedMessage = parser.parse(message, replyEvent);
 
         if (parsedMessage && parsedMessage["m.new_content"] && previousEvent) {

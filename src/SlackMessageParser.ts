@@ -3,6 +3,20 @@ import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions from "./substitutions";
 import {IMatrixReplyEvent} from "./SlackGhost";
+import {WebClient} from "@slack/web-api";
+import {SlackRoomStore} from "./SlackRoomStore";
+import {Intent, Logger} from "matrix-appservice-bridge";
+import {ConversationsInfoResponse} from "./SlackResponses";
+import {Datastore} from "./datastore/Models";
+import {SlackGhostStore} from "./SlackGhostStore";
+import {Main} from "./Main";
+
+const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
+
+// If the message is an emote, the format is <@ID|nick>, but in normal messages it's just <@ID>.
+const USER_ID_REGEX = /<@(\w+)\|?\w*?>/g;
+
+const log = new Logger("SlackMessageParser");
 
 export class SlackMessageParser {
     private readonly handledSubtypes = [
@@ -13,7 +27,18 @@ export class SlackMessageParser {
         "message_changed",
     ];
 
-    constructor(private matrixRoomId: string) {}
+    constructor(
+        private readonly matrixRoomId: string,
+        private readonly matrixBotIntent: Intent,
+        private readonly datastore: Datastore,
+        private readonly roomStore: SlackRoomStore,
+        private readonly ghostStore: SlackGhostStore,
+        // Main is only for getTeamDomainForMessage()
+        // TODO: Refactor getTeamDomainForMessage() into something that can be injected.
+        //       Also, there are currently two implementations of getTeamDomainForMessage() in the codebase.
+        //       There should be a single one.
+        private readonly main: Main,
+    ) {}
 
     parse(message: ISlackMessageEvent, replyEvent: IMatrixReplyEvent | null): TextualMessageEventContent | null {
         const subtype = message.subtype;
@@ -149,4 +174,83 @@ export class SlackMessageParser {
         const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
         return `> <${replyEvent.sender}> ${originalBody.split("\n").join("\n> ")}`;
     }
+
+    private async replaceChannelIdsWithNames(message: ISlackMessageEvent, text: string, slackClient: WebClient): Promise<string> {
+        let match: RegExpExecArray | null = null;
+        while ((match = CHANNEL_ID_REGEX.exec(text)) !== null) {
+            // foreach channelId, pull out the ID
+            // (if this is an emote msg, the format is <#ID|name>, but in normal msgs it's just <#ID>
+            const id = match[1];
+
+            // Lookup the room in the store.
+            let room = this.roomStore.getBySlackChannelId(id);
+
+            // If we bridge the room, attempt to look up its canonical alias.
+            if (room !== undefined) {
+                const canonicalEvent = await this.matrixBotIntent.getStateEvent(room.MatrixRoomId, "m.room.canonical_alias", "", true);
+                const canonicalAlias = canonicalEvent?.alias;
+                if (canonicalAlias) {
+                    text = text.slice(0, match.index) + canonicalAlias + text.slice(match.index + match[0].length);
+                    log.debug(`Room ${room.MatrixRoomId} does not have a canonical alias`);
+                } else {
+                    room = undefined;
+                }
+            }
+
+            // If we can't match the room then we just put the Slack name
+            if (room === undefined) {
+                const name = await this.getSlackRoomNameFromID(id, slackClient);
+                text = text.slice(0, match.index) + `#${name}` + text.slice(match.index + match[0].length);
+            }
+        }
+        return text;
+    }
+
+    private async replaceUserIdsWithNames(message: ISlackMessageEvent, text: string): Promise<string> {
+        const teamDomain = await this.main.getTeamDomainForMessage(message);
+
+        if (!teamDomain) {
+            log.warn(`Cannot replace user ids with names for ${message.ts}. Unable to determine the teamDomain.`);
+            return text;
+        }
+
+        let match: RegExpExecArray|null = null;
+        while ((match = USER_ID_REGEX.exec(text)) !== null) {
+            // foreach userId, pull out the ID
+            // (if this is an emote msg, the format is <@ID|nick>, but in normal msgs it's just <@ID>
+            const id = match[1];
+
+            let displayName = "";
+            const userId = await this.ghostStore.getUserId(id, teamDomain);
+
+            const users = await this.datastore.getUser(userId);
+
+            if (!users) {
+                log.warn("Mentioned user not in store. Looking up display name from slack.");
+                // if the user is not in the store then we look up the displayname
+                displayName = await this.ghostStore.getNullGhostDisplayName(message.channel, id);
+                // If the user is not in the room, we can't pills them, we have to just plain text mention them.
+                text = text.slice(0, match.index) + displayName + text.slice(match.index + match[0].length);
+            } else {
+                displayName = users.display_name || userId;
+                text = text.slice(0, match.index) + `<https://matrix.to/#/${userId}|${displayName}>` + text.slice(match.index + match[0].length);
+            }
+        }
+        return text;
+    }
+
+    private async getSlackRoomNameFromID(channel: string, client: WebClient): Promise<string> {
+        try {
+            const response = (await client.conversations.info({ channel })) as ConversationsInfoResponse;
+            if (response && response.channel && response.channel.name) {
+                log.info(`conversations.info: ${channel} mapped to ${response.channel.name}`);
+                return response.channel.name;
+            }
+            log.info("conversations.info returned no result for " + channel);
+        } catch (err) {
+            log.error("Caught error handling conversations.info:" + err);
+        }
+        return channel;
+    }
+
 }
