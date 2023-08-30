@@ -54,7 +54,7 @@ export class SlackMessageParser {
             return null;
         }
 
-        let text = message.text;
+        const text = message.text;
         if (!text) {
             return null;
         }
@@ -66,21 +66,23 @@ export class SlackMessageParser {
             };
         }
 
-        text = this.slackToMatrix(text, subtype === "file_comment" ? message.file : undefined);
-        const parsedMessage = this.parseText(text);
+        const file = subtype === "file_comment" ? message.file : undefined;
+        const parsedMessage = this.doParse(text, file);
 
-        if (subtype === "message_changed" && message.previous_message && message.previous_message.text) {
-            const parsedPreviousMessage = this.parseText(message.previous_message.text);
+        if (subtype === "message_changed" && message.previous_message?.text) {
+            const parsedPreviousMessage = this.doParse(message.previous_message.text);
             return this.parseEdit(parsedMessage, parsedPreviousMessage, replyEvent);
         }
 
         return parsedMessage;
     }
 
-    private parseText(text: string): TextualMessageEventContent {
+    private doParse(text: string, file?: ISlackFile): TextualMessageEventContent {
+        let body = this.slackToMatrix(text, file);
+
         // TODO: This is fixing plaintext mentions, but should be refactored.
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
-        const body = text.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
+        body = body.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
 
         // TODO: Slack's markdown is their own thing that isn't really markdown,
         // but the only parser we have for it is slackdown. However, Matrix expects
