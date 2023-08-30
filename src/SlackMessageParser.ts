@@ -69,17 +69,17 @@ export class SlackMessageParser {
         const teamDomain = await this.main.getTeamDomainForMessage(message);
 
         const file = subtype === "file_comment" ? message.file : undefined;
-        const parsedMessage = this.doParse(text, teamDomain, file);
+        const parsedMessage = await this.doParse(text, teamDomain, file);
 
         if (subtype === "message_changed" && message.previous_message?.text) {
-            const parsedPreviousMessage = this.doParse(message.previous_message.text, teamDomain);
+            const parsedPreviousMessage = await this.doParse(message.previous_message.text, teamDomain);
             return this.parseEdit(parsedMessage, parsedPreviousMessage, replyEvent);
         }
 
         return parsedMessage;
     }
 
-    private doParse(text: string, teamDomain?: string, file?: ISlackFile): TextualMessageEventContent {
+    private async doParse(text: string, teamDomain?: string, file?: ISlackFile): Promise<TextualMessageEventContent> {
         let body = text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
         body = body.replace("<!channel>", "@room");
         body = body.replace("<!here>", "@room");
