@@ -54,16 +54,33 @@ export class SlackMessageParser {
             return null;
         }
 
-        const text = message.text;
-        if (!text) {
-            return null;
-        }
-
         if (subtype === "me_message") {
             return {
                 msgtype: "m.emote",
-                body: text,
+                body: message.text || "",
             };
+        }
+
+        if (message.attachments) {
+            // noinspection LoopStatementThatDoesntLoopJS
+            for (const attachment of message.attachments) {
+                message.text = attachment.fallback;
+                if (attachment.text) {
+                    message.text = `${message.text}: ${attachment.text}`;
+                    if (attachment.title_link) {
+                        message.text = `${message.text} [${attachment.title_link}]`;
+                    }
+                }
+                break;
+            }
+            if (message.text === "") {
+                return null;
+            }
+        }
+
+        const text = message.text;
+        if (!text) {
+            return null;
         }
 
         const teamDomain = await this.main.getTeamDomainForMessage(message);

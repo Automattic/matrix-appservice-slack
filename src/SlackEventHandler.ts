@@ -267,23 +267,6 @@ export class SlackEventHandler extends BaseSlackHandler {
             return room.onSlackMessage(msg);
         }
 
-        // Handle events with attachments like bot messages.
-        if (msg.type === "message" && msg.attachments) {
-            for (const attachment of msg.attachments) {
-                msg.text = attachment.fallback;
-                if (attachment.text) {
-                    msg.text = `${msg.text}: ${attachment.text}`;
-                    if (attachment.title_link) {
-                        msg.text = `${msg.text} [${attachment.title_link}]`;
-                    }
-                }
-                return await room.onSlackMessage(msg);
-            }
-            if (msg.text === "") {
-                return;
-            }
-        }
-
         // In this method we must standardise the message object so that
         // getGhostForSlackMessage works correctly.
         if (msg.subtype === "file_comment" && msg.comment) {
