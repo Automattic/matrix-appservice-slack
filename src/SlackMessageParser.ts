@@ -78,7 +78,21 @@ export class SlackMessageParser {
     }
 
     private doParse(text: string, file?: ISlackFile): TextualMessageEventContent {
-        let body = this.slackToMatrix(text, file);
+        let body = text.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");
+        body = body.replace("<!channel>", "@room");
+        body = body.replace("<!here>", "@room");
+        body = body.replace("<!everyone>", "@room");
+
+        // if we have a file, attempt to get the direct link to the file
+        if (file && file.permalink_public && file.url_private && file.permalink) {
+            const url = this.getSlackFileUrl({
+                permalink_public: file.permalink_public,
+                url_private: file.url_private,
+            });
+            body = url ? body.replace(file.permalink, url) : body;
+        }
+
+        body = emoji.emojify(body, getFallbackForMissingEmoji);
 
         // TODO: This is fixing plaintext mentions, but should be refactored.
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
@@ -263,40 +277,10 @@ export class SlackMessageParser {
         return channel;
     }
 
-    private slackToMatrix(body: string, file?: ISlackFile): string {
-        log.debug("running substitutions on ", body);
-        body = this.htmlUnescape(body);
-        body = body.replace("<!channel>", "@room");
-        body = body.replace("<!here>", "@room");
-        body = body.replace("<!everyone>", "@room");
-
-        // if we have a file, attempt to get the direct link to the file
-        if (file && file.permalink_public && file.url_private && file.permalink) {
-            const url = this.getSlackFileUrl({
-                permalink_public: file.permalink_public,
-                url_private: file.url_private,
-            });
-            body = url ? body.replace(file.permalink, url) : body;
-        }
-
-        body = emoji.emojify(body, getFallbackForMissingEmoji);
-
-        return body;
-    }
-
-    /**
-     * Replace &lt;, &gt; and &amp; in a string with their real counterparts.
-     */
-    private htmlUnescape(s: string): string {
-        return s.replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/&amp;/g, "&");
-    }
-
     private getSlackFileUrl(file: {
         permalink_public: string,
         url_private: string,
-    }): string|undefined {
+    }): string | undefined {
         const pubSecret = file.permalink_public.match(/https?:\/\/slack-files.com\/[^-]*-[^-]*-(.*)/);
         if (!pubSecret) {
             throw Error("Could not determine pub_secret");
