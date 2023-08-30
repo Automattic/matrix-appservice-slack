@@ -1,4 +1,4 @@
-import {ISlackFile, ISlackMessageEvent} from "./BaseSlackHandler";
+import {ISlackMessageEvent} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
@@ -78,15 +78,23 @@ export class SlackMessageParser {
             }
         }
 
-        const text = message.text;
+        let text = message.text;
         if (!text) {
             return null;
         }
 
-        const teamDomain = await this.main.getTeamDomainForMessage(message);
-
+        // if we have a file, attempt to get the direct link to the file.
         const file = subtype === "file_comment" ? message.file : undefined;
-        const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain, file);
+        if (file && file.permalink_public && file.url_private && file.permalink) {
+            const url = this.getSlackFileUrl({
+                permalink_public: file.permalink_public,
+                url_private: file.url_private,
+            });
+            text = url ? text.replace(file.permalink, url) : text;
+        }
+
+        const teamDomain = await this.main.getTeamDomainForMessage(message);
+        const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain);
 
         if (subtype === "message_changed" && message.previous_message?.text) {
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
@@ -101,7 +109,6 @@ export class SlackMessageParser {
         slackClient: WebClient,
         channelId: string,
         teamDomain: string | undefined,
-        file?: ISlackFile,
     ): Promise<TextualMessageEventContent> {
         body = await this.replaceChannelIdsWithNames(body, slackClient);
         if (teamDomain) {
@@ -112,16 +119,6 @@ export class SlackMessageParser {
         body = body.replace("<!channel>", "@room");
         body = body.replace("<!here>", "@room");
         body = body.replace("<!everyone>", "@room");
-
-        // if we have a file, attempt to get the direct link to the file
-        if (file && file.permalink_public && file.url_private && file.permalink) {
-            const url = this.getSlackFileUrl({
-                permalink_public: file.permalink_public,
-                url_private: file.url_private,
-            });
-            body = url ? body.replace(file.permalink, url) : body;
-        }
-
         body = emoji.emojify(body, getFallbackForMissingEmoji);
 
         // TODO: This is fixing plaintext mentions, but should be refactored.
