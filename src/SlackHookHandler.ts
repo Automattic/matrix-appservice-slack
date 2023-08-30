@@ -298,7 +298,6 @@ export class SlackHookHandler extends BaseSlackHandler {
             return;
         }
 
-        const text = params.text as string;
         const lookupRes = await this.lookupMessage(
             params.channel_id as string,
             params.timestamp as string,
@@ -313,7 +312,6 @@ export class SlackHookHandler extends BaseSlackHandler {
         // Restore the original parameters, because we've forgotten a lot of
         // them by now
         PRESERVE_KEYS.forEach((k) => lookupRes.message[k] = params[k]);
-        lookupRes.message.text = await this.doChannelUserReplacements(lookupRes.message, text, room.SlackClient);
         return room.onSlackMessage(lookupRes.message);
     }
 
