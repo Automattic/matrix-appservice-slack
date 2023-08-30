@@ -1,7 +1,7 @@
-import {ISlackMessageEvent} from "./BaseSlackHandler";
+import {ISlackFile, ISlackMessageEvent} from "./BaseSlackHandler";
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
-import substitutions from "./substitutions";
+import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
 import {IMatrixReplyEvent} from "./SlackGhost";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
@@ -10,6 +10,7 @@ import {ConversationsInfoResponse} from "./SlackResponses";
 import {Datastore} from "./datastore/Models";
 import {SlackGhostStore} from "./SlackGhostStore";
 import {Main} from "./Main";
+import * as emoji from "node-emoji";
 
 const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
 
@@ -65,7 +66,7 @@ export class SlackMessageParser {
             };
         }
 
-        text = substitutions.slackToMatrix(text, subtype === "file_comment" ? message.file : undefined);
+        text = this.slackToMatrix(text, subtype === "file_comment" ? message.file : undefined);
         const parsedMessage = this.parseText(text);
 
         if (subtype === "message_changed" && message.previous_message && message.previous_message.text) {
@@ -258,5 +259,49 @@ export class SlackMessageParser {
             log.error("Caught error handling conversations.info:" + err);
         }
         return channel;
+    }
+
+    private slackToMatrix(body: string, file?: ISlackFile): string {
+        log.debug("running substitutions on ", body);
+        body = this.htmlUnescape(body);
+        body = body.replace("<!channel>", "@room");
+        body = body.replace("<!here>", "@room");
+        body = body.replace("<!everyone>", "@room");
+
+        // if we have a file, attempt to get the direct link to the file
+        if (file && file.permalink_public && file.url_private && file.permalink) {
+            const url = this.getSlackFileUrl({
+                permalink_public: file.permalink_public,
+                url_private: file.url_private,
+            });
+            body = url ? body.replace(file.permalink, url) : body;
+        }
+
+        body = emoji.emojify(body, getFallbackForMissingEmoji);
+
+        return body;
+    }
+
+    /**
+     * Replace &lt;, &gt; and &amp; in a string with their real counterparts.
+     */
+    private htmlUnescape(s: string): string {
+        return s.replace(/&lt;/g, "<")
+            .replace(/&gt;/g, ">")
+            .replace(/&amp;/g, "&");
+    }
+
+    private getSlackFileUrl(file: {
+        permalink_public: string,
+        url_private: string,
+    }): string|undefined {
+        const pubSecret = file.permalink_public.match(/https?:\/\/slack-files.com\/[^-]*-[^-]*-(.*)/);
+        if (!pubSecret) {
+            throw Error("Could not determine pub_secret");
+        }
+        // try to get direct link to the file
+        if (pubSecret && pubSecret.length > 0) {
+            return `${file.url_private}?pub_secret=${pubSecret[1]}`;
+        }
     }
 }
