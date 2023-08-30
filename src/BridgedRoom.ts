@@ -729,7 +729,7 @@ export class BridgedRoom {
                     // We sent this, ignore
                     return;
                 }
-                return this.handleSlackMessage(message, ghost).catch((ex) => {
+                return this.handleSlackMessage(message, ghost, this.SlackClient).catch((ex) => {
                     log.warn(`Failed to handle slack message ${message.ts} for ${this.MatrixRoomId} ${this.slackChannelId}`, ex);
                 });
             });
@@ -995,7 +995,11 @@ export class BridgedRoom {
         );
     }
 
-    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost) {
+    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient?: WebClient) {
+        if (!slackClient) {
+            throw Error("slackClient is required to handle a slack message");
+        }
+
         const eventTS = message.event_ts || message.ts;
         const channelId = this.slackChannelId!;
 
@@ -1060,7 +1064,7 @@ export class BridgedRoom {
             this.main.ghostStore,
             this.main,
         );
-        const parsedMessage = parser.parse(message, replyEvent);
+        const parsedMessage = await parser.parse(message, slackClient, replyEvent);
 
         if (parsedMessage && parsedMessage["m.new_content"] && previousEvent) {
             // It's an edit, we need to set the id of the event we're editing.

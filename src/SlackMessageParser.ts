@@ -18,6 +18,9 @@ const USER_ID_REGEX = /<@(\w+)\|?\w*?>/g;
 
 const log = new Logger("SlackMessageParser");
 
+/**
+ * Parses the content of a Slack message into an `m.message` Matrix event.
+ */
 export class SlackMessageParser {
     private readonly handledSubtypes = [
         undefined, // Messages with no subtype
@@ -40,7 +43,11 @@ export class SlackMessageParser {
         private readonly main: Main,
     ) {}
 
-    parse(message: ISlackMessageEvent, replyEvent: IMatrixReplyEvent | null): TextualMessageEventContent | null {
+    async parse(
+        message: ISlackMessageEvent,
+        slackClient: WebClient,
+        replyEvent: IMatrixReplyEvent | null,
+    ): Promise<TextualMessageEventContent | null> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
             return null;
