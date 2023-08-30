@@ -1064,8 +1064,12 @@ export class BridgedRoom {
             this.main,
         );
         const parsedMessage = await parser.parse(message, slackClient, replyEvent);
+        if (!parsedMessage) {
+            log.warn(`Ignoring message with subtype: ${subtype}`);
+            return;
+        }
 
-        if (parsedMessage && parsedMessage["m.new_content"] && previousEvent) {
+        if (parsedMessage["m.new_content"] && previousEvent) {
             // It's an edit, we need to set the id of the event we're editing.
             parsedMessage["m.relates_to"] = {
                 rel_type: "m.replace",
@@ -1075,18 +1079,16 @@ export class BridgedRoom {
             return ghost.sendMessage(this.MatrixRoomId, record, this.slackTeamId, channelId, eventTS);
         }
 
-        if (parsedMessage && message.thread_ts !== undefined && replyEvent) {
+        if (message.thread_ts !== undefined && replyEvent) {
             return await ghost.sendInThread(
                 this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId!, eventTS, replyEvent, message.thread_ts,
             );
         }
 
-        if (parsedMessage && ["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
+        if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
             const record = parsedMessage as unknown as Record<string, string>;
             return await ghost.sendMessage(this.matrixRoomId, record, this.slackTeamId, channelId, eventTS);
         }
-
-        log.warn(`Ignoring message with subtype: ${subtype}`);
     }
 
     public async onMatrixTyping(currentlyTyping: string[]) {
