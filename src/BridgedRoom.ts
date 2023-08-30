@@ -729,6 +729,9 @@ export class BridgedRoom {
                     // We sent this, ignore
                     return;
                 }
+                if (!this.SlackClient) {
+                    throw Error("slackClient is required to handle a slack message");
+                }
                 return this.handleSlackMessage(message, ghost, this.SlackClient).catch((ex) => {
                     log.warn(`Failed to handle slack message ${message.ts} for ${this.MatrixRoomId} ${this.slackChannelId}`, ex);
                 });
@@ -995,11 +998,7 @@ export class BridgedRoom {
         );
     }
 
-    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient?: WebClient) {
-        if (!slackClient) {
-            throw Error("slackClient is required to handle a slack message");
-        }
-
+    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient: WebClient) {
         const eventTS = message.event_ts || message.ts;
         const channelId = this.slackChannelId!;
 
