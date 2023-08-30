@@ -339,7 +339,7 @@ export class SlackGhost {
     public async sendInThread(
         roomId: string,
         content: TextualMessageEventContent,
-        slackTeamId: string | undefined,
+        slackTeamId: string,
         slackChannelId: string,
         slackEventTs: string,
         replyEvent: IMatrixReplyEvent,
@@ -367,7 +367,7 @@ export class SlackGhost {
     public async sendMessage(
         roomId: string,
         msg: Record<string, unknown>,
-        slackTeamId: string | undefined,
+        slackTeamId: string,
         slackChannelId: string,
         slackEventTs: string
     ): Promise<{ event_id: string }> {
@@ -396,7 +396,7 @@ export class SlackGhost {
 
     private async appendExternalUrlToMessage(
         msg: Record<string, unknown>,
-        slackTeamId: string | undefined,
+        slackTeamId: string,
         slackChannelId: string,
         slackEventTs: string,
         slackThreadTs?: string,

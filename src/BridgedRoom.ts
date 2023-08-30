@@ -882,6 +882,10 @@ export class BridgedRoom {
     }
 
     private async handleSlackMessageFile(file: ISlackFile, slackEventId: string, ghost: SlackGhost) {
+        if (!this.SlackTeamId) {
+            throw Error("SlackTeamId must be set");
+        }
+
         const maxUploadSize = this.main.config.homeserver.max_upload_size;
         const filePrivateUrl = file.url_private;
         if (!filePrivateUrl) {
@@ -918,7 +922,7 @@ export class BridgedRoom {
                 formatted_body: `<a href="${link}">${file.name}</a>`,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.slackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -957,7 +961,7 @@ export class BridgedRoom {
                 formatted_body: htmlCode,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.slackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -992,13 +996,16 @@ export class BridgedRoom {
         await ghost.sendMessage(
             this.matrixRoomId,
             slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri),
-            this.slackTeamId,
+            this.SlackTeamId,
             channelId,
             slackEventId,
         );
     }
 
     private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient: WebClient) {
+        if (!this.SlackTeamId) {
+            throw Error("SlackTeamId must be set");
+        }
         if (!this.SlackChannelId) {
             throw Error("SlackChannelId must be set");
         }
@@ -1014,8 +1021,8 @@ export class BridgedRoom {
                 !(await intent.matrixClient.getRoomMembers(this.matrixRoomId, undefined, ["invite", "join"]))
                     .map(m => m.membershipFor).includes(ghost.intent.userId))
             {
-                await intent.invite(this.matrixRoomId, ghost.matrixUserId);
-                await ghost.intent.join(this.matrixRoomId);
+                await intent.invite(this.MatrixRoomId, ghost.matrixUserId);
+                await ghost.intent.join(this.MatrixRoomId);
             }
         }
 
@@ -1079,18 +1086,18 @@ export class BridgedRoom {
                 event_id: previousEvent.eventId,
             };
             const record = parsedMessage as unknown as Record<string, string>;
-            return ghost.sendMessage(this.MatrixRoomId, record, this.slackTeamId, this.SlackChannelId, eventTS);
+            return ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
         }
 
         if (message.thread_ts !== undefined && replyEvent) {
             return await ghost.sendInThread(
-                this.MatrixRoomId, parsedMessage, this.slackTeamId, this.SlackChannelId, eventTS, replyEvent, message.thread_ts,
+                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, replyEvent, message.thread_ts,
             );
         }
 
         if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
             const record = parsedMessage as unknown as Record<string, string>;
-            return await ghost.sendMessage(this.matrixRoomId, record, this.slackTeamId, this.SlackChannelId, eventTS);
+            return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
         }
     }
 
