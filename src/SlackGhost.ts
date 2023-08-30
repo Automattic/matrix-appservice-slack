@@ -340,7 +340,7 @@ export class SlackGhost {
         roomId: string,
         content: TextualMessageEventContent,
         slackTeamId: string | undefined,
-        slackRoomId: string,
+        slackChannelId: string,
         slackEventTs: string,
         replyEvent: IMatrixReplyEvent,
         slackThreadTs: string,
@@ -360,22 +360,22 @@ export class SlackGhost {
             ...content,
         };
 
-        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs, slackThreadTs);
-        await this.sendMessage(roomId, msg, slackTeamId, slackRoomId, slackEventTs);
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackChannelId, slackEventTs, slackThreadTs);
+        await this.sendMessage(roomId, msg, slackTeamId, slackChannelId, slackEventTs);
     }
 
     public async sendMessage(
         roomId: string,
         msg: Record<string, unknown>,
         slackTeamId: string | undefined,
-        slackRoomId: string,
+        slackChannelId: string,
         slackEventTs: string
     ): Promise<{ event_id: string }> {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
 
-        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs);
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackChannelId, slackEventTs);
         const matrixEvent = await this._intent.sendMessage(roomId, msg) as {event_id?: unknown};
 
         if (typeof matrixEvent !== 'object' || !matrixEvent || typeof matrixEvent.event_id !== 'string') {
@@ -385,7 +385,7 @@ export class SlackGhost {
         await this.datastore.upsertEvent(
             roomId,
             matrixEvent.event_id,
-            slackRoomId,
+            slackChannelId,
             slackEventTs,
         );
 
@@ -397,7 +397,7 @@ export class SlackGhost {
     private async appendExternalUrlToMessage(
         msg: Record<string, unknown>,
         slackTeamId: string | undefined,
-        slackRoomId: string,
+        slackChannelId: string,
         slackEventTs: string,
         slackThreadTs?: string,
     ): Promise<Record<string, unknown>> {
@@ -410,7 +410,7 @@ export class SlackGhost {
             return msg;
         }
 
-        let externalUrl = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs.replace(".", "")}`;
+        let externalUrl = `https://${team.domain}.slack.com/archives/${slackChannelId}/p${slackEventTs.replace(".", "")}`;
         if (slackThreadTs) {
             externalUrl = `${externalUrl}?thread_ts=${slackThreadTs.replace(".", "")}`;
         }
@@ -423,7 +423,7 @@ export class SlackGhost {
         roomId: string,
         eventId: string,
         key: string,
-        slackRoomId: string,
+        slackChannelId: string,
         slackEventTs: string
     ): Promise<{event_id: string}> {
         if (!this._intent) {
@@ -444,7 +444,7 @@ export class SlackGhost {
         }
 
         // Add this event to the eventStore
-        await this.datastore.upsertEvent(roomId, matrixEvent.event_id, slackRoomId, slackEventTs);
+        await this.datastore.upsertEvent(roomId, matrixEvent.event_id, slackChannelId, slackEventTs);
 
         return {
             event_id: matrixEvent.event_id,
