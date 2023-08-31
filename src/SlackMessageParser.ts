@@ -48,8 +48,9 @@ export class SlackMessageParser {
     ) {
         this.markdown = new MarkdownIt({
             // Allow HTML to pass through as is.
-            // We're first passing the text through Slackdown, which will convert certain elements to HTML.
-            html: true
+            html: true,
+            // Convert \n to <br>.
+            breaks: true,
         });
     }
 
@@ -136,7 +137,7 @@ export class SlackMessageParser {
         // We first run it through Slackdown, which will convert some elements to HTML.
         // Then we pass it through the markdown renderer, while letting existing HTML through.
         let formattedBody: string = Slackdown.parse(body);
-        formattedBody = this.markdown.render(formattedBody);
+        formattedBody = this.markdown.render(formattedBody).trimEnd();
         formattedBody = formattedBody.replace("\n", "<br>");
 
         return {
