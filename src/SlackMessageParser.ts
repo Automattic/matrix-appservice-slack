@@ -140,6 +140,14 @@ export class SlackMessageParser {
         formattedBody = this.markdown.render(formattedBody).trimEnd();
         formattedBody = formattedBody.replace("\n", "<br>");
 
+        if (formattedBody === `<p>${body}</p>`) {
+            // Formatted body is the same as plain text body, just wrapped in a paragraph.
+            return {
+                msgtype: "m.text",
+                body,
+            };
+        }
+
         return {
             msgtype: "m.text",
             format: "org.matrix.custom.html",
