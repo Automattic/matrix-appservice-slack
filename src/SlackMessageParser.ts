@@ -138,7 +138,7 @@ export class SlackMessageParser {
         // Then we pass it through the markdown renderer, while letting existing HTML through.
         let formattedBody: string = Slackdown.parse(body);
         formattedBody = this.markdown.render(formattedBody).trimEnd();
-        formattedBody = formattedBody.replace("\n", "<br>");
+        formattedBody = formattedBody.replaceAll("\n", "");
 
         if (formattedBody === `<p>${body}</p>`) {
             // Formatted body is the same as plain text body, just wrapped in a paragraph.
