@@ -132,6 +132,9 @@ export class SlackMessageParser {
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
         body = body.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
 
+        // Convert plain text body to HTML.
+        // We first run it through Slackdown, which will convert some elements to HTML.
+        // Then we pass it through the markdown renderer, while letting existing HTML through.
         let formattedBody: string = Slackdown.parse(body);
         formattedBody = this.markdown.render(formattedBody);
         formattedBody = formattedBody.replace("\n", "<br>");
