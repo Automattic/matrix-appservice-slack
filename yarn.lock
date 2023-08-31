@@ -865,10 +865,6 @@
     magic-string "^0.27.0"
     react-refresh "^0.14.0"
 
-"Slackdown@git+https://Half-Shot@github.com/half-shot/slackdown.git":
-  version "0.1.2"
-  resolved "git+https://Half-Shot@github.com/half-shot/slackdown.git#efd8934a3d9c3bf0064c0b217c5cf6b62ee697e4"
-
 a-sync-waterfall@^1.0.0:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/a-sync-waterfall/-/a-sync-waterfall-1.0.1.tgz#75b6b6aa72598b497a125e7a2770f14f4c8a1fa7"
@@ -4302,6 +4298,11 @@ simple-swizzle@^0.2.2:
   integrity sha512-JA//kQgZtbuY83m+xT+tXJkmJncGMTFT+C+g2h2R9uxkYIrE2yy9sgmcLhCnw57/WSD+Eh3J97FPEDFnbXnDUg==
   dependencies:
     is-arrayish "^0.3.1"
+
+slackdown@^0.1.1:
+  version "0.1.1"
+  resolved "https://registry.yarnpkg.com/slackdown/-/slackdown-0.1.1.tgz#000e6baeb0d7fff155091a40a322dbad04af156a"
+  integrity sha512-Bp+y4dRODHqWr2XxVIid3qiHcNusR9R0hnRZYxJ/dZYwnoci1Gtg3ClylQNivYWk6DQ7jKNVptdeaGwhSlfktA==
 
 slash@^3.0.0:
   version "3.0.0"
