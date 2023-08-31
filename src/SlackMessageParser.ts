@@ -104,7 +104,16 @@ export class SlackMessageParser {
             return attachment.fallback;
         }
 
-        let text = `${attachment.text}`;
+        let text = "";
+        if (attachment.title) {
+            if (attachment.title_link) {
+                text += `# [${attachment.title}](${attachment.title_link})\n`;
+            } else {
+                text += `# ${attachment.title}\n`;
+            }
+        }
+
+        text += `${attachment.text}`;
         if (attachment.title_link) {
             text += ` [${attachment.title_link}]`;
         }
