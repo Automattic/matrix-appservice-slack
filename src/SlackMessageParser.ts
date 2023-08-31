@@ -99,12 +99,13 @@ export class SlackMessageParser {
     }
 
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
-        let text = attachment.fallback;
-        if (attachment.text) {
-            text = `${text}: ${attachment.text}`;
-            if (attachment.title_link) {
-                text = `${text} [${attachment.title_link}]`;
-            }
+        if (!attachment.text) {
+            return attachment.fallback;
+        }
+
+        let text = `${attachment.text}`;
+        if (attachment.title_link) {
+            text += ` [${attachment.title_link}]`;
         }
 
         return text;
