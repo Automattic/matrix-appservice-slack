@@ -39,6 +39,7 @@ export interface ISlackEventMessageAttachment {
     text?: string;
     title?: string;
     title_link?: string;
+    author_name?: string;
 }
 
 export interface ISlackMessageEvent extends ISlackEvent {

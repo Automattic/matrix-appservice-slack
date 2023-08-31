@@ -105,12 +105,17 @@ export class SlackMessageParser {
         }
 
         let text = "";
+
         if (attachment.title) {
             if (attachment.title_link) {
                 text += `# [${attachment.title}](${attachment.title_link})\n`;
             } else {
                 text += `# ${attachment.title}\n`;
             }
+        }
+
+        if (attachment.author_name) {
+            text += `**${attachment.author_name}**\n`;
         }
 
         text += `${attachment.text}`;
