@@ -61,9 +61,11 @@ export class SlackMessageParser {
             };
         }
 
-        let text: string;
+        let text = "";
         if (message.attachments) {
-            text = this.parseAttachments(message.attachments);
+            for (const attachment of message.attachments) {
+                text += this.parseAttachment(attachment);
+            }
         } else {
             text = message.text || "";
         }
@@ -87,19 +89,13 @@ export class SlackMessageParser {
         return parsedMessage;
     }
 
-    private parseAttachments(attachments: ISlackEventMessageAttachment[]): string {
-        let text = "";
-
-        // noinspection LoopStatementThatDoesntLoopJS
-        for (const attachment of attachments) {
-            text = attachment.fallback;
-            if (attachment.text) {
-                text = `${text}: ${attachment.text}`;
-                if (attachment.title_link) {
-                    text = `${text} [${attachment.title_link}]`;
-                }
+    private parseAttachment(attachment: ISlackEventMessageAttachment): string {
+        let text = attachment.fallback;
+        if (attachment.text) {
+            text = `${text}: ${attachment.text}`;
+            if (attachment.title_link) {
+                text = `${text} [${attachment.title_link}]`;
             }
-            break;
         }
 
         return text;
