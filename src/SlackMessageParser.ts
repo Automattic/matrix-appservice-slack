@@ -123,6 +123,9 @@ export class SlackMessageParser {
             text += ` [${attachment.title_link}]`;
         }
 
+        // Quote the whole attachment.
+        text = text.replaceAll("\n", "\n> ");
+
         return text;
     }
 
