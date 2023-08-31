@@ -11,6 +11,7 @@ import {Datastore} from "./datastore/Models";
 import {SlackGhostStore} from "./SlackGhostStore";
 import {Main} from "./Main";
 import * as emoji from "node-emoji";
+import MarkdownIt from "markdown-it";
 
 const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
 
@@ -31,6 +32,8 @@ export class SlackMessageParser {
         "message_changed",
     ];
 
+    private readonly markdown: MarkdownIt;
+
     constructor(
         private readonly matrixRoomId: string,
         private readonly matrixBotIntent: Intent,
@@ -42,7 +45,13 @@ export class SlackMessageParser {
         //       Also, there are currently two implementations of getTeamDomainForMessage() in the codebase.
         //       There should be a single one.
         private readonly main: Main,
-    ) {}
+    ) {
+        this.markdown = new MarkdownIt({
+            // Allow HTML to pass through as is.
+            // We're first passing the text through Slackdown, which will convert certain elements to HTML.
+            html: true
+        });
+    }
 
     async parse(
         message: ISlackMessageEvent,
@@ -122,34 +131,8 @@ export class SlackMessageParser {
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
         body = body.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
 
-        // TODO: Slack's markdown is their own thing that isn't really markdown,
-        // but the only parser we have for it is slackdown. However, Matrix expects
-        // a variant of markdown that is in the realm of sanity. Currently text
-        // will be slack's markdown until we've got a slack -> markdown parser.
         let formattedBody: string = Slackdown.parse(body);
-
-        // Parse blockquotes.
-        const blocks: string[] = [];
-        let currentQuote = "";
-        const quoteDelimiter = "> ";
-        for (const line of formattedBody.split("\n")) {
-            if (line.startsWith(quoteDelimiter)) {
-                currentQuote += line.replace(quoteDelimiter, "") + "<br>";
-            } else {
-                if (currentQuote !== "") {
-                    blocks.push(`<blockquote>${currentQuote}</blockquote>`);
-                }
-                blocks.push(`${line}<br>`);
-                currentQuote = "";
-            }
-        }
-        if (currentQuote !== "") {
-            blocks.push(`<blockquote>${currentQuote}</blockquote>`);
-        }
-
-        if (blocks.length > 0) {
-            formattedBody = blocks.join("");
-        }
+        formattedBody = this.markdown.render(formattedBody);
         formattedBody = formattedBody.replace("\n", "<br>");
 
         return {
