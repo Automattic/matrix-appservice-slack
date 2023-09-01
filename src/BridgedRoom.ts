@@ -1061,14 +1061,13 @@ export class BridgedRoom {
         }
 
         const parser = new SlackMessageParser(
-            this.MatrixRoomId,
             this.main.botIntent,
             this.main.datastore,
             this.main.rooms,
             this.main.ghostStore,
             this.main,
         );
-        const parsedMessage = await parser.parse(message, slackClient, lastEventInThread);
+        const parsedMessage = await parser.parse(message, slackClient);
         if (!parsedMessage) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
             return;

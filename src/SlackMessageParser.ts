@@ -2,7 +2,7 @@ import {ISlackEventMessageAttachment, ISlackMessageEvent, ISlackFile} from "./Ba
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
-import {IMatrixEventContent, IMatrixReplyEvent} from "./SlackGhost";
+import {IMatrixEventContent} from "./SlackGhost";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
 import {Intent, Logger} from "matrix-appservice-bridge";
@@ -35,7 +35,6 @@ export class SlackMessageParser {
     private readonly markdown: MarkdownIt;
 
     constructor(
-        private readonly matrixRoomId: string,
         private readonly matrixBotIntent: Intent,
         private readonly datastore: Datastore,
         private readonly roomStore: SlackRoomStore,
@@ -57,7 +56,6 @@ export class SlackMessageParser {
     async parse(
         message: ISlackMessageEvent,
         slackClient: WebClient,
-        lastEventInThread: IMatrixReplyEvent | null,
     ): Promise<TextualMessageEventContent | null> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
@@ -104,7 +102,7 @@ export class SlackMessageParser {
             }
 
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, lastEventInThread);
+            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent);
         }
 
         return parsedMessage;
@@ -182,8 +180,7 @@ export class SlackMessageParser {
     private parseEdit(
         parsedMessage: TextualMessageEventContent,
         parsedPreviousMessage: TextualMessageEventContent,
-        previousEvent: EventEntry,
-        lastEventInThread: IMatrixReplyEvent | null
+        previousEvent: EventEntry
     ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
         const prev   = substitutions.htmlEscape(edits.prev);
@@ -220,24 +217,6 @@ export class SlackMessageParser {
             },
             ...relatesTo,
         };
-    }
-
-    private getFallbackHtml(roomId: string, replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        let originalHtml = (replyEvent.content ? replyEvent.content.formatted_body : "") || null;
-        if (originalHtml === null) {
-            originalHtml = originalBody;
-        }
-        return "<mx-reply><blockquote>"
-            + `<a href="https://matrix.to/#/${roomId}/${replyEvent.event_id}">In reply to</a>`
-            + `<a href="https://matrix.to/#/${replyEvent.sender}">${replyEvent.sender}</a>`
-            + `<br />${originalHtml}`
-            + "</blockquote></mx-reply>";
-    }
-
-    private getFallbackText(replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        return `> <${replyEvent.sender}> ${originalBody.split("\n").join("\n> ")}`;
     }
 
     private async replaceChannelIdsWithNames(text: string, slackClient: WebClient): Promise<string> {
