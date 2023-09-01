@@ -191,27 +191,17 @@ export class SlackMessageParser {
         const before = substitutions.htmlEscape(edits.before);
         const after  = substitutions.htmlEscape(edits.after);
 
-        let body =
+        const body =
             `(edited) ${edits.before} ${edits.prev} ${edits.after} => ` +
             `${edits.before} ${edits.curr} ${edits.after}`;
 
-        let formattedBody =
+        const formattedBody =
             `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
             `<font color="green"> ${curr} </font> ${after}`;
 
 
-        let newBody = parsedMessage.body;
-        let newFormattedBody = parsedMessage.formatted_body ?? "";
-
-        if (lastEventInThread) {
-            const bodyFallback = this.getFallbackText(lastEventInThread);
-            const formattedFallback = this.getFallbackHtml(this.matrixRoomId, lastEventInThread);
-
-            body = `${bodyFallback}\n\n${body}`;
-            formattedBody = formattedFallback + formattedBody;
-            newBody = bodyFallback + newBody;
-            newFormattedBody = formattedFallback + newFormattedBody;
-        }
+        const newBody = parsedMessage.body;
+        const newFormattedBody = parsedMessage.formatted_body ?? "";
 
         let relatesTo = {};
         if (previousEvent) {
