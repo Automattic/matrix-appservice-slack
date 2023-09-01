@@ -108,9 +108,9 @@ export class SlackMessageParser {
 
         if (attachment.title) {
             if (attachment.title_link) {
-                text += `# [${attachment.title}](${attachment.title_link})\n`;
+                text += `**[${attachment.title}](${attachment.title_link})**\n`;
             } else {
-                text += `# ${attachment.title}\n`;
+                text += `**${attachment.title}**\n`;
             }
         }
 
