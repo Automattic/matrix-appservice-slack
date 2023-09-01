@@ -7,7 +7,7 @@ import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
 import {Intent, Logger} from "matrix-appservice-bridge";
 import {ConversationsInfoResponse} from "./SlackResponses";
-import {Datastore} from "./datastore/Models";
+import {Datastore, EventEntry} from "./datastore/Models";
 import {SlackGhostStore} from "./SlackGhostStore";
 import {Main} from "./Main";
 import * as emoji from "node-emoji";
@@ -49,7 +49,7 @@ export class SlackMessageParser {
         this.markdown = new MarkdownIt({
             // Allow HTML to pass through as is.
             html: true,
-            // Convert \n to <br>.
+            // Convert \n to <br> in paragraphs.
             breaks: true,
         });
     }
@@ -92,8 +92,16 @@ export class SlackMessageParser {
         const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain);
 
         if (subtype === "message_changed" && message.previous_message?.text) {
+            let previousEvent: EventEntry | null = null;
+            if (message.previous_message?.ts) {
+                previousEvent = await this.datastore.getEventBySlackId(message.channel, message.previous_message.ts);
+            }
+            if (!previousEvent) {
+                log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
+            }
+
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage, replyEvent);
+            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, replyEvent);
         }
 
         return parsedMessage;
@@ -178,6 +186,7 @@ export class SlackMessageParser {
     private parseEdit(
         parsedMessage: TextualMessageEventContent,
         parsedPreviousMessage: TextualMessageEventContent,
+        previousEvent: EventEntry | null,
         replyEvent: IMatrixReplyEvent | null
     ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
