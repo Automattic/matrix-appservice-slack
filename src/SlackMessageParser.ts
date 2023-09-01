@@ -2,7 +2,7 @@ import {ISlackEventMessageAttachment, ISlackMessageEvent, ISlackFile} from "./Ba
 import * as Slackdown from "Slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
-import {IMatrixReplyEvent} from "./SlackGhost";
+import {IMatrixEventContent, IMatrixReplyEvent} from "./SlackGhost";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
 import {Intent, Logger} from "matrix-appservice-bridge";
@@ -96,8 +96,11 @@ export class SlackMessageParser {
             if (message.previous_message?.ts) {
                 previousEvent = await this.datastore.getEventBySlackId(message.channel, message.previous_message.ts);
             }
+
+            // If the event we're editing was not found, we consider this to be a new message.
             if (!previousEvent) {
                 log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
+                return parsedMessage;
             }
 
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
@@ -164,29 +167,22 @@ export class SlackMessageParser {
         // We first run it through Slackdown, which will convert some elements to HTML.
         // Then we pass it through the markdown renderer, while letting existing HTML through.
         let formattedBody: string = Slackdown.parse(body);
-        formattedBody = this.markdown.render(formattedBody).trimEnd();
+        formattedBody = this.markdown.render(formattedBody).trim();
         formattedBody = formattedBody.replaceAll("\n", "");
 
         if (formattedBody === `<p>${body}</p>`) {
             // Formatted body is the same as plain text body, just wrapped in a paragraph.
-            return {
-                msgtype: "m.text",
-                body,
-            };
+            // So we consider the message to be plain text.
+            formattedBody = "";
         }
 
-        return {
-            msgtype: "m.text",
-            format: "org.matrix.custom.html",
-            body,
-            formatted_body: formattedBody,
-        };
+        return this.makeEventContent(body, formattedBody);
     }
 
     private parseEdit(
         parsedMessage: TextualMessageEventContent,
         parsedPreviousMessage: TextualMessageEventContent,
-        previousEvent: EventEntry | null,
+        previousEvent: EventEntry,
         replyEvent: IMatrixReplyEvent | null
     ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
@@ -203,16 +199,18 @@ export class SlackMessageParser {
             `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
             `<font color="green"> ${curr} </font> ${after}`;
 
+
         let newBody = parsedMessage.body;
-        let newFormattedBody =  parsedMessage.formatted_body;
+        let newFormattedBody = parsedMessage.formatted_body ?? "";
 
         if (replyEvent) {
             const bodyFallback = this.getFallbackText(replyEvent);
             const formattedFallback = this.getFallbackHtml(this.matrixRoomId, replyEvent);
+
             body = `${bodyFallback}\n\n${body}`;
             formattedBody = formattedFallback + formattedBody;
-            newBody = bodyFallback + parsedMessage.body;
-            newFormattedBody = formattedFallback + parsedMessage.formatted_body;
+            newBody = bodyFallback + newBody;
+            newFormattedBody = formattedFallback + newFormattedBody;
         }
 
         let relatesTo = {};
@@ -226,15 +224,9 @@ export class SlackMessageParser {
         }
 
         return {
-            msgtype: "m.text",
-            format: "org.matrix.custom.html",
-            body,
-            formatted_body: formattedBody,
+            ...this.makeEventContent(body, formattedBody),
             "m.new_content": {
-                msgtype: "m.text",
-                format: "org.matrix.custom.html",
-                body: newBody,
-                formatted_body: newFormattedBody,
+                ...this.makeEventContent(newBody, newFormattedBody),
             },
             ...relatesTo,
         };
@@ -340,5 +332,19 @@ export class SlackMessageParser {
         }
 
         return text.replace(file.permalink, `${file.url_private}?pub_secret=${pubSecret[1]}`);
+    }
+
+    private makeEventContent(body: string, formattedBody?: string | null): IMatrixEventContent {
+        const content: IMatrixEventContent = {
+            msgtype: "m.text",
+            body,
+        };
+
+        if (formattedBody && formattedBody !== "") {
+            content.format = "org.matrix.custom.html";
+            content.formatted_body = formattedBody;
+        }
+
+        return content;
     }
 }

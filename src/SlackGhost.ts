@@ -28,12 +28,17 @@ const log = new Logger("SlackGhost");
 // How long in milliseconds to cache user info lookups.
 const USER_CACHE_TIMEOUT = 10 * 60 * 1000;  // 10 minutes
 
+export interface IMatrixEventContent {
+    msgtype: "m.text",
+    body: string;
+    format?: string;
+    formatted_body?: string;
+}
+
 export interface IMatrixReplyEvent {
     sender: string;
     event_id: string;
-    content: {
-        body: string;
-        formatted_body?: string;
+    content: IMatrixEventContent & {
         "m.relates_to"?: {
             rel_type?: string,
             event_id?: string,
