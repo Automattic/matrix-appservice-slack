@@ -215,6 +215,16 @@ export class SlackMessageParser {
             newFormattedBody = formattedFallback + parsedMessage.formatted_body;
         }
 
+        let relatesTo = {};
+        if (previousEvent) {
+            relatesTo = {
+                "m.relates_to": {
+                    rel_type: "m.replace",
+                    event_id: previousEvent.eventId,
+                },
+            };
+        }
+
         return {
             msgtype: "m.text",
             format: "org.matrix.custom.html",
@@ -225,7 +235,8 @@ export class SlackMessageParser {
                 format: "org.matrix.custom.html",
                 body: newBody,
                 formatted_body: newFormattedBody,
-            }
+            },
+            ...relatesTo,
         };
     }
 

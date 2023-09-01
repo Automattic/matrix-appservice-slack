@@ -1060,11 +1060,6 @@ export class BridgedRoom {
             }
         }
 
-        let previousEvent: EventEntry | null = null;
-        if (message.previous_message?.ts) {
-            previousEvent = await this.main.datastore.getEventBySlackId(this.SlackChannelId, message.previous_message.ts);
-        }
-
         const parser = new SlackMessageParser(
             this.MatrixRoomId,
             this.main.botIntent,
@@ -1079,17 +1074,10 @@ export class BridgedRoom {
             return;
         }
 
-        if (parsedMessage["m.new_content"] && previousEvent) {
-            // It's an edit, we need to set the id of the event we're editing.
-            parsedMessage["m.relates_to"] = {
-                rel_type: "m.replace",
-                event_id: previousEvent.eventId,
-            };
-            const record = parsedMessage as unknown as Record<string, string>;
-            return ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
-        }
-
-        if (message.thread_ts !== undefined && replyEvent) {
+        // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
+        // Edits still work correctly in threads nonetheless.
+        const isEdit = parsedMessage["m.new_content"];
+        if (message.thread_ts && replyEvent && !isEdit) {
             return await ghost.sendInThread(
                 this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, replyEvent, message.thread_ts,
             );
