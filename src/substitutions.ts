@@ -14,13 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { Logger } from "matrix-appservice-bridge";
-import * as emoji from "node-emoji";
 import { Main } from "./Main";
-import { ISlackFile } from "./BaseSlackHandler";
 import escapeStringRegexp from "escape-string-regexp";
-
-const log = new Logger("substitutions");
 
 const ATTACHMENT_TYPES = ["m.audio", "m.video", "m.file", "m.image"];
 const PILL_REGEX = /<a href="https:\/\/matrix\.to\/#\/(#|@|\+)([^"]+)">([^<]+)<\/a>/g;
@@ -50,35 +45,6 @@ export interface IMatrixToSlackResult {
 }
 
 class Substitutions {
-
-    /**
-     * Performs any escaping, unescaping, or substituting required to make the text
-     * of a Slack message appear like the text of a Matrix message.
-     *
-     * @param body the text, in Slack's format.
-     * @param file options slack file object
-     */
-    public slackToMatrix(body: string, file?: ISlackFile): string {
-        log.debug("running substitutions on ", body);
-        body = this.htmlUnescape(body);
-        body = body.replace("<!channel>", "@room");
-        body = body.replace("<!here>", "@room");
-        body = body.replace("<!everyone>", "@room");
-
-        // if we have a file, attempt to get the direct link to the file
-        if (file && file.permalink_public && file.url_private && file.permalink) {
-            const url = this.getSlackFileUrl({
-                permalink_public: file.permalink_public,
-                url_private: file.url_private,
-            });
-            body = url ? body.replace(file.permalink, url) : body;
-        }
-
-        body = emoji.emojify(body, getFallbackForMissingEmoji);
-
-        return body;
-    }
-
     /**
      * Performs any escaping, unescaping, or substituting required to make the text
      * of a Matrix message appear like the text of a Slack message.
@@ -248,15 +214,6 @@ class Substitutions {
             .replace(/>/g, "&gt;");
     }
 
-    /**
-     * Replace &lt;, &gt; and &amp; in a string with their real counterparts.
-     */
-    public htmlUnescape(s: string): string {
-        return s.replace(/&lt;/g, "<")
-            .replace(/&gt;/g, ">")
-            .replace(/&amp;/g, "&");
-    }
-
     public makeDiff(prev: string, curr: string): { prev: string, curr: string, before: string, after: string} {
         let i;
         for (i = 0; i < curr.length && i < prev.length; i++) {
@@ -302,20 +259,6 @@ class Substitutions {
         if (after !== suffix) { after = after + " ..."; }
 
         return {prev, curr, before, after};
-    }
-
-    public getSlackFileUrl(file: {
-        permalink_public: string,
-        url_private: string,
-    }): string|undefined {
-        const pubSecret = file.permalink_public.match(/https?:\/\/slack-files.com\/[^-]*-[^-]*-(.*)/);
-        if (!pubSecret) {
-            throw Error("Could not determine pub_secret");
-        }
-        // try to get direct link to the file
-        if (pubSecret && pubSecret.length > 0) {
-            return `${file.url_private}?pub_secret=${pubSecret[1]}`;
-        }
     }
 }
 

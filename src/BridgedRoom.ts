@@ -16,7 +16,7 @@ limitations under the License.
 
 import axios from "axios";
 import { Logger, Intent } from "matrix-appservice-bridge";
-import { SlackGhost } from "./SlackGhost";
+import {IMatrixReplyEvent, SlackGhost} from "./SlackGhost";
 import { Main, METRIC_SENT_MESSAGES } from "./Main";
 import { default as substitutions, getFallbackForMissingEmoji, IMatrixToSlackResult } from "./substitutions";
 import * as emoji from "node-emoji";
@@ -26,6 +26,7 @@ import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
 import {MatrixClient} from "matrix-bot-sdk";
+import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
 
@@ -728,7 +729,10 @@ export class BridgedRoom {
                     // We sent this, ignore
                     return;
                 }
-                return this.handleSlackMessage(message, ghost).catch((ex) => {
+                if (!this.SlackClient) {
+                    throw Error("slackClient is required to handle a slack message");
+                }
+                return this.handleSlackMessage(message, ghost, this.SlackClient).catch((ex) => {
                     log.warn(`Failed to handle slack message ${message.ts} for ${this.MatrixRoomId} ${this.slackChannelId}`, ex);
                 });
             });
@@ -878,6 +882,10 @@ export class BridgedRoom {
     }
 
     private async handleSlackMessageFile(file: ISlackFile, slackEventId: string, ghost: SlackGhost) {
+        if (!this.SlackTeamId) {
+            throw Error("SlackTeamId must be set");
+        }
+
         const maxUploadSize = this.main.config.homeserver.max_upload_size;
         const filePrivateUrl = file.url_private;
         if (!filePrivateUrl) {
@@ -914,7 +922,7 @@ export class BridgedRoom {
                 formatted_body: `<a href="${link}">${file.name}</a>`,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.slackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -953,7 +961,7 @@ export class BridgedRoom {
                 formatted_body: htmlCode,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.slackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -988,15 +996,21 @@ export class BridgedRoom {
         await ghost.sendMessage(
             this.matrixRoomId,
             slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri),
-            this.slackTeamId,
+            this.SlackTeamId,
             channelId,
             slackEventId,
         );
     }
 
-    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost) {
+    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient: WebClient) {
+        if (!this.SlackTeamId) {
+            throw Error("SlackTeamId must be set");
+        }
+        if (!this.SlackChannelId) {
+            throw Error("SlackChannelId must be set");
+        }
+
         const eventTS = message.event_ts || message.ts;
-        const channelId = this.slackChannelId!;
 
         // Dedupe across RTM/Event streams
         this.addRecentSlackMessage(message.ts);
@@ -1007,8 +1021,8 @@ export class BridgedRoom {
                 !(await intent.matrixClient.getRoomMembers(this.matrixRoomId, undefined, ["invite", "join"]))
                     .map(m => m.membershipFor).includes(ghost.intent.userId))
             {
-                await intent.invite(this.matrixRoomId, ghost.matrixUserId);
-                await ghost.intent.join(this.matrixRoomId);
+                await intent.invite(this.MatrixRoomId, ghost.matrixUserId);
+                await ghost.intent.join(this.MatrixRoomId);
             }
         }
 
@@ -1022,125 +1036,68 @@ export class BridgedRoom {
             log.error(`Error storing activity metrics`, err);
         });
 
-        // Transform the text if it is present.
-        if (message.text) {
-            message.text = substitutions.slackToMatrix(message.text,
-                subtype === "file_comment" ? message.file : undefined);
+        // Private rooms don't send the usual join events, so we listen for these here.
+        if (subtype === "group_join" && message.user) {
+            return this.onSlackUserJoin(message.user, message.inviter);
         }
 
-        if (message.thread_ts !== undefined && message.text) {
-            let replyMEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId!);
-            if (replyMEvent) {
-                replyMEvent = await this.stripMatrixReplyFallback(replyMEvent);
-                return await ghost.sendInThread(
-                    this.MatrixRoomId, message.text, this.slackTeamId, this.SlackChannelId!, eventTS, replyMEvent, message.thread_ts,
-                );
+        for (const file of message.files || []) {
+            try {
+                await this.handleSlackMessageFile(file, eventTS, ghost);
+            } catch (ex) {
+                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
+            }
+        }
+
+        let replyEvent: IMatrixReplyEvent | null = null;
+        // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
+        if (message.thread_ts || (message.message && message.message.thread_ts)) {
+            replyEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
+            if (replyEvent) {
+                replyEvent = await this.stripMatrixReplyFallback(replyEvent);
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);
             }
         }
 
-        // If we are only handling text, send the text. File messages are handled in a separate block.
-        if (["bot_message", "file_comment", undefined].includes(subtype) && message.files === undefined) {
-            return ghost.sendText(this.matrixRoomId, message.text!, this.slackTeamId, channelId, eventTS);
-        } else if (subtype === "me_message") {
-            return ghost.sendMessage(this.matrixRoomId, {
-                body: message.text!,
-                msgtype: "m.emote",
-            }, this.slackTeamId, channelId, eventTS);
-        } else if (subtype === "message_changed") {
-            const previousMessage = ghost.prepareBody(substitutions.slackToMatrix(message.previous_message!.text!));
-            // We use message.text here rather than the proper message.message.text
-            // as we have added message.text ourselves and then transformed it.
-            const newMessageRich = substitutions.slackToMatrix(message.text!);
-            const newMessage = ghost.prepareBody(newMessageRich);
+        let previousEvent: EventEntry | null = null;
+        if (message.previous_message?.ts) {
+            previousEvent = await this.main.datastore.getEventBySlackId(this.SlackChannelId, message.previous_message.ts);
+        }
 
-            // The substitutions might make the messages the same
-            if (previousMessage === newMessage) {
-                log.debug("Ignoring edit message because messages are the same post-substitutions.");
-                return;
-            }
-
-            const edits = substitutions.makeDiff(previousMessage, newMessage);
-
-            const outtext = `(edited) ${edits.before} ${edits.prev} ${edits.after} => ` +
-                `${edits.before} ${edits.curr}  ${edits.after}`;
-
-            const prev   = substitutions.htmlEscape(edits.prev);
-            const curr   = substitutions.htmlEscape(edits.curr);
-            const before = substitutions.htmlEscape(edits.before);
-            const after  = substitutions.htmlEscape(edits.after);
-
-            let formatted = `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
-            `<font color="green"> ${curr} </font> ${after}`;
-            const prevEvent = await this.main.datastore.getEventBySlackId(channelId, message.previous_message!.ts);
-
-            // If this edit is in a thread we need to inject the reply fallback, or
-            // non-reply supporting clients will no longer show it as a reply.
-            let body = ghost.prepareBody(outtext);
-
-            let newBody = ghost.prepareBody(newMessageRich);
-            let newFormattedBody = ghost.prepareFormattedBody(newMessageRich);
-            if (message.message && message.message.thread_ts !== undefined) {
-                let replyEvent = await this.getReplyEvent(
-                    this.MatrixRoomId, message.message as unknown as ISlackMessageEvent, this.slackChannelId!,
-                );
-                replyEvent = await this.stripMatrixReplyFallback(replyEvent);
-                if (replyEvent) {
-                    const bodyFallback = ghost.getFallbackText(replyEvent);
-                    const formattedFallback = ghost.getFallbackHtml(this.MatrixRoomId, replyEvent);
-                    body = `${bodyFallback}\n\n${body}`;
-                    formatted = formattedFallback + formatted;
-                    newBody = bodyFallback + newBody;
-                    newFormattedBody = formattedFallback + newFormattedBody;
-                }
-            }
-            let replyContent: Record<string, unknown>|undefined;
-            // Only include edit metadata in the message if we have the previous eventId,
-            // otherwise just send the fallback reply text.
-            if (prevEvent) {
-                replyContent = {
-                    "m.new_content": {
-                        body: newBody,
-                        format: "org.matrix.custom.html",
-                        formatted_body: newFormattedBody,
-                        msgtype: "m.text",
-                    },
-                    "m.relates_to": {
-                        event_id: prevEvent.eventId,
-                        rel_type: "m.replace",
-                    },
-                };
-            } else {
-                log.warn("Got edit but no previous matrix events were found");
-            }
-            const matrixContent = {
-                body,
-                format: "org.matrix.custom.html",
-                formatted_body: formatted,
-                msgtype: "m.text",
-                ...replyContent,
-            };
-            return ghost.sendMessage(this.MatrixRoomId, matrixContent, this.slackTeamId, channelId, eventTS);
-        } else if (message.files) { // A message without a subtype can contain files.
-            for (const file of message.files) {
-                try {
-                    await this.handleSlackMessageFile(file, eventTS, ghost);
-                } catch (ex) {
-                    log.warn(`Couldn't handle Slack file, ignoring:`, ex);
-                }
-            }
-            // TODO: Currently Matrix lacks a way to upload a "captioned image",
-            //   so we just send a separate `m.image` and `m.text` message
-            // See https://github.com/matrix-org/matrix-doc/issues/906
-            if (message.text) {
-                return ghost.sendText(this.matrixRoomId, message.text, this.slackTeamId, channelId, eventTS);
-            }
-        } else if (message.subtype === "group_join" && message.user) {
-            /* Private rooms don't send the usual join events so we listen for these */
-            return this.onSlackUserJoin(message.user, message.inviter);
-        } else {
+        const parser = new SlackMessageParser(
+            this.MatrixRoomId,
+            this.main.botIntent,
+            this.main.datastore,
+            this.main.rooms,
+            this.main.ghostStore,
+            this.main,
+        );
+        const parsedMessage = await parser.parse(message, slackClient, replyEvent);
+        if (!parsedMessage) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
+            return;
+        }
+
+        if (parsedMessage["m.new_content"] && previousEvent) {
+            // It's an edit, we need to set the id of the event we're editing.
+            parsedMessage["m.relates_to"] = {
+                rel_type: "m.replace",
+                event_id: previousEvent.eventId,
+            };
+            const record = parsedMessage as unknown as Record<string, string>;
+            return ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
+        }
+
+        if (message.thread_ts !== undefined && replyEvent) {
+            return await ghost.sendInThread(
+                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, replyEvent, message.thread_ts,
+            );
+        }
+
+        if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
+            const record = parsedMessage as unknown as Record<string, string>;
+            return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
         }
     }
 
@@ -1162,7 +1119,12 @@ export class BridgedRoom {
         }));
     }
 
-    private async getReplyEvent(roomID: string, message: ISlackMessageEvent, slackRoomID: string) {
+    private async getReplyEvent(roomID: string, message: ISlackMessageEvent, slackRoomID: string): Promise<IMatrixReplyEvent | null> {
+        // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
+        if (message.subtype === "message_changed" && message.message) {
+            message = message.message;
+        }
+
         // Get parent event
         const dataStore = this.main.datastore;
         const parentEvent = await dataStore.getEventBySlackId(slackRoomID, message.thread_ts!);

@@ -15,20 +15,20 @@ limitations under the License.
 */
 
 import { Logger, Intent } from "matrix-appservice-bridge";
-import * as Slackdown from "Slackdown";
 import { ISlackUser } from "./BaseSlackHandler";
 import { WebClient } from "@slack/web-api";
 import { BotsInfoResponse, UsersInfoResponse } from "./SlackResponses";
 import { UserEntry, Datastore } from "./datastore/Models";
 import axios from "axios";
 import {IConfig} from "./IConfig";
+import {TextualMessageEventContent} from "matrix-bot-sdk";
 
 const log = new Logger("SlackGhost");
 
 // How long in milliseconds to cache user info lookups.
 const USER_CACHE_TIMEOUT = 10 * 60 * 1000;  // 10 minutes
 
-interface IMatrixReplyEvent {
+export interface IMatrixReplyEvent {
     sender: string;
     event_id: string;
     content: {
@@ -336,21 +336,11 @@ export class SlackGhost {
         return true;
     }
 
-    public prepareBody(body: string): string {
-        // TODO: This is fixing plaintext mentions, but should be refactored.
-        // See https://github.com/matrix-org/matrix-appservice-slack/issues/110
-        return body.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
-    }
-
-    public prepareFormattedBody(body: string): string {
-        return Slackdown.parse(body);
-    }
-
     public async sendInThread(
         roomId: string,
-        text: string,
-        slackTeamId: string | undefined,
-        slackRoomId: string,
+        content: TextualMessageEventContent,
+        slackTeamId: string,
+        slackChannelId: string,
         slackEventTs: string,
         replyEvent: IMatrixReplyEvent,
         slackThreadTs: string,
@@ -367,81 +357,25 @@ export class SlackGhost {
                     event_id: replyEvent.event_id,
                 },
             },
-            "msgtype": "m.text", // for those who just want to send the reply as-is
-            "body": this.prepareBody(text),
-            "format": "org.matrix.custom.html",
-            "formatted_body": this.prepareFormattedBody(text),
+            ...content,
         };
 
-        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs, slackThreadTs);
-        await this.sendMessage(roomId, msg, slackTeamId, slackRoomId, slackEventTs);
-    }
-
-    public async sendText(
-        roomId: string,
-        text: string,
-        slackTeamId: string | undefined,
-        slackRoomId: string,
-        slackEventTs: string,
-        extra: Record<string, unknown> = {}
-    ): Promise<void> {
-        // TODO: This is fixing plaintext mentions, but should be refactored.
-        // https://github.com/matrix-org/matrix-appservice-slack/issues/110
-        const body = text.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
-
-        // TODO: Slack's markdown is their own thing that isn't really markdown,
-        // but the only parser we have for it is slackdown. However, Matrix expects
-        // a variant of markdown that is in the realm of sanity. Currently text
-        // will be slack's markdown until we've got a slack -> markdown parser.
-        let formattedBody: string = Slackdown.parse(text);
-
-        // Parse blockquotes.
-        const blocks: string[] = [];
-        let currentQuote = "";
-        const quoteDelimiter = "> ";
-        for (const line of formattedBody.split("\n")) {
-            if (line.startsWith(quoteDelimiter)) {
-                currentQuote += line.replace(quoteDelimiter, "") + "<br>";
-            } else {
-                if (currentQuote !== "") {
-                    blocks.push(`<blockquote>${currentQuote}</blockquote>`);
-                }
-                blocks.push(`${line}<br>`);
-                currentQuote = "";
-            }
-        }
-        if (currentQuote !== "") {
-            blocks.push(`<blockquote>${currentQuote}</blockquote>`);
-        }
-
-        if (blocks.length > 0) {
-            formattedBody = blocks.join("");
-        }
-        formattedBody = formattedBody.replace("\n", "<br>");
-
-        const content = {
-            body,
-            format: "org.matrix.custom.html",
-            formatted_body: formattedBody,
-            msgtype: "m.text",
-            ...extra,
-        };
-
-        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackChannelId, slackEventTs, slackThreadTs);
+        await this.sendMessage(roomId, msg, slackTeamId, slackChannelId, slackEventTs);
     }
 
     public async sendMessage(
         roomId: string,
         msg: Record<string, unknown>,
-        slackTeamId: string | undefined,
-        slackRoomId: string,
+        slackTeamId: string,
+        slackChannelId: string,
         slackEventTs: string
     ): Promise<{ event_id: string }> {
         if (!this._intent) {
             throw Error('No intent associated with ghost');
         }
 
-        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackRoomId, slackEventTs);
+        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackChannelId, slackEventTs);
         const matrixEvent = await this._intent.sendMessage(roomId, msg) as {event_id?: unknown};
 
         if (typeof matrixEvent !== 'object' || !matrixEvent || typeof matrixEvent.event_id !== 'string') {
@@ -451,7 +385,7 @@ export class SlackGhost {
         await this.datastore.upsertEvent(
             roomId,
             matrixEvent.event_id,
-            slackRoomId,
+            slackChannelId,
             slackEventTs,
         );
 
@@ -462,8 +396,8 @@ export class SlackGhost {
 
     private async appendExternalUrlToMessage(
         msg: Record<string, unknown>,
-        slackTeamId: string | undefined,
-        slackRoomId: string,
+        slackTeamId: string,
+        slackChannelId: string,
         slackEventTs: string,
         slackThreadTs?: string,
     ): Promise<Record<string, unknown>> {
@@ -476,7 +410,7 @@ export class SlackGhost {
             return msg;
         }
 
-        let externalUrl = `https://${team.domain}.slack.com/archives/${slackRoomId}/p${slackEventTs.replace(".", "")}`;
+        let externalUrl = `https://${team.domain}.slack.com/archives/${slackChannelId}/p${slackEventTs.replace(".", "")}`;
         if (slackThreadTs) {
             externalUrl = `${externalUrl}?thread_ts=${slackThreadTs.replace(".", "")}`;
         }
@@ -489,7 +423,7 @@ export class SlackGhost {
         roomId: string,
         eventId: string,
         key: string,
-        slackRoomId: string,
+        slackChannelId: string,
         slackEventTs: string
     ): Promise<{event_id: string}> {
         if (!this._intent) {
@@ -510,36 +444,11 @@ export class SlackGhost {
         }
 
         // Add this event to the eventStore
-        await this.datastore.upsertEvent(roomId, matrixEvent.event_id, slackRoomId, slackEventTs);
+        await this.datastore.upsertEvent(roomId, matrixEvent.event_id, slackChannelId, slackEventTs);
 
         return {
             event_id: matrixEvent.event_id,
         };
-    }
-
-    public async sendWithReply(
-        roomId: string,
-        text: string,
-        slackTeamId: string | undefined,
-        slackRoomId: string,
-        slackEventTs: string,
-        replyEvent: IMatrixReplyEvent
-    ): Promise<void> {
-        const fallbackHtml = this.getFallbackHtml(roomId, replyEvent);
-        const fallbackText = this.getFallbackText(replyEvent);
-
-        const content = {
-            "m.relates_to": {
-                "m.in_reply_to": {
-                    event_id: replyEvent.event_id,
-                },
-            },
-            "msgtype": "m.text", // for those who just want to send the reply as-is
-            "body": `${fallbackText}\n\n${this.prepareBody(text)}`,
-            "format": "org.matrix.custom.html",
-            "formatted_body": fallbackHtml + this.prepareFormattedBody(text),
-        };
-        await this.sendMessage(roomId, content, slackTeamId, slackRoomId, slackEventTs);
     }
 
     public async sendTyping(roomId: string): Promise<void> {
@@ -549,13 +458,6 @@ export class SlackGhost {
         // This lasts for 20000 - See http://matrix-org.github.io/matrix-js-sdk/1.2.0/client.js.html#line2031
         this.typingInRooms.add(roomId);
         await this._intent.sendTyping(roomId, true);
-    }
-
-    public async updateReadMarker(roomId: string, eventId: string): Promise<void> {
-        if (!this._intent) {
-            throw Error('No intent associated with ghost');
-        }
-        await this._intent.sendReadReceipt(roomId, eventId);
     }
 
     public async cancelTyping(roomId: string): Promise<void> {
@@ -603,23 +505,5 @@ export class SlackGhost {
 
     public bumpATime(): void {
         this.atime = Date.now() / 1000;
-    }
-
-    public getFallbackHtml(roomId: string, replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        let originalHtml = (replyEvent.content ? replyEvent.content.formatted_body : "") || null;
-        if (originalHtml === null) {
-            originalHtml = originalBody;
-        }
-        return "<mx-reply><blockquote>"
-              + `<a href="https://matrix.to/#/${roomId}/${replyEvent.event_id}">In reply to</a>`
-              + `<a href="https://matrix.to/#/${replyEvent.sender}">${replyEvent.sender}</a>`
-              + `<br />${originalHtml}`
-              + "</blockquote></mx-reply>";
-    }
-
-    public getFallbackText(replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        return `> <${replyEvent.sender}> ${originalBody.split("\n").join("\n> ")}`;
     }
 }
