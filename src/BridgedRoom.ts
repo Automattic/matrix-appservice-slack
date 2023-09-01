@@ -1049,12 +1049,12 @@ export class BridgedRoom {
             }
         }
 
-        let replyEvent: IMatrixReplyEvent | null = null;
+        let lastEventInThread: IMatrixReplyEvent | null = null;
         // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
         if (message.thread_ts || (message.message && message.message.thread_ts)) {
-            replyEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
-            if (replyEvent) {
-                replyEvent = await this.stripMatrixReplyFallback(replyEvent);
+            lastEventInThread = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
+            if (lastEventInThread) {
+                lastEventInThread = await this.stripMatrixReplyFallback(lastEventInThread);
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);
             }
@@ -1068,7 +1068,7 @@ export class BridgedRoom {
             this.main.ghostStore,
             this.main,
         );
-        const parsedMessage = await parser.parse(message, slackClient, replyEvent);
+        const parsedMessage = await parser.parse(message, slackClient, lastEventInThread);
         if (!parsedMessage) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
             return;
@@ -1077,9 +1077,9 @@ export class BridgedRoom {
         // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
         // Edits still work correctly in threads nonetheless.
         const isEdit = parsedMessage["m.new_content"];
-        if (message.thread_ts && replyEvent && !isEdit) {
+        if (message.thread_ts && lastEventInThread && !isEdit) {
             return await ghost.sendInThread(
-                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, replyEvent, message.thread_ts,
+                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, lastEventInThread, message.thread_ts,
             );
         }
 

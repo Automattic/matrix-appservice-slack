@@ -57,7 +57,7 @@ export class SlackMessageParser {
     async parse(
         message: ISlackMessageEvent,
         slackClient: WebClient,
-        replyEvent: IMatrixReplyEvent | null,
+        lastEventInThread: IMatrixReplyEvent | null,
     ): Promise<TextualMessageEventContent | null> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
@@ -104,7 +104,7 @@ export class SlackMessageParser {
             }
 
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, replyEvent);
+            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, lastEventInThread);
         }
 
         return parsedMessage;
@@ -183,7 +183,7 @@ export class SlackMessageParser {
         parsedMessage: TextualMessageEventContent,
         parsedPreviousMessage: TextualMessageEventContent,
         previousEvent: EventEntry,
-        replyEvent: IMatrixReplyEvent | null
+        lastEventInThread: IMatrixReplyEvent | null
     ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
         const prev   = substitutions.htmlEscape(edits.prev);
@@ -203,9 +203,9 @@ export class SlackMessageParser {
         let newBody = parsedMessage.body;
         let newFormattedBody = parsedMessage.formatted_body ?? "";
 
-        if (replyEvent) {
-            const bodyFallback = this.getFallbackText(replyEvent);
-            const formattedFallback = this.getFallbackHtml(this.matrixRoomId, replyEvent);
+        if (lastEventInThread) {
+            const bodyFallback = this.getFallbackText(lastEventInThread);
+            const formattedFallback = this.getFallbackHtml(this.matrixRoomId, lastEventInThread);
 
             body = `${bodyFallback}\n\n${body}`;
             formattedBody = formattedFallback + formattedBody;
