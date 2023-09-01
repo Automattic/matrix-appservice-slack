@@ -124,6 +124,10 @@ export class SlackMessageParser {
         text = `> ${text}`;
         text = text.replaceAll("\n", "\n> ");
 
+        if (attachment.pretext) {
+            text = `${attachment.pretext}\n${text}`;
+        }
+
         return text;
     }
 

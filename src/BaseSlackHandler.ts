@@ -36,6 +36,7 @@ export interface ISlackEvent {
 
 export interface ISlackEventMessageAttachment {
     fallback: string;
+    pretext?: string;
     text?: string;
     title?: string;
     title_link?: string;
