@@ -5,20 +5,20 @@ on:
 
 jobs:
   run-tests:
-   runs-on: ubuntu-latest
-   steps:
-    - uses: actions/checkout@v2
-    - name: Use Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: 18
-    - run: yarn --pure-lockfile
-    - run: yarn test:unit
-    - run: yarn test:integration
-    - name: Run Postgres
-      run: |
-        docker run --detach --publish 5432:5432 \
-          --env POSTGRES_PASSWORD=pass \
-          --env POSTGRES_INITDB_ARGS="--lc-collate C --lc-ctype C --encoding UTF8" \
-          postgres
-    - run: yarn test:postgres
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: yarn --pure-lockfile
+      - run: yarn test:unit
+      - run: yarn test:integration
+      - name: Run Postgres
+        run: |
+          docker run --detach --publish 5432:5432 \
+            --env POSTGRES_PASSWORD=pass \
+            --env POSTGRES_INITDB_ARGS="--lc-collate C --lc-ctype C --encoding UTF8" \
+            postgres
+      - run: yarn test:postgres
