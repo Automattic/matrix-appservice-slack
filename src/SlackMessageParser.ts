@@ -74,7 +74,9 @@ export class SlackMessageParser {
             for (const attachment of message.attachments) {
                 text += this.parseAttachment(attachment) ?? "";
             }
-        } else {
+        }
+
+        if (text === "") {
             text = message.text || "";
         }
 
