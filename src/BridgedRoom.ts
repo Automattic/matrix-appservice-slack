@@ -1049,49 +1049,36 @@ export class BridgedRoom {
             }
         }
 
-        let replyEvent: IMatrixReplyEvent | null = null;
+        let lastEventInThread: IMatrixReplyEvent | null = null;
         // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
         if (message.thread_ts || (message.message && message.message.thread_ts)) {
-            replyEvent = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
-            if (replyEvent) {
-                replyEvent = await this.stripMatrixReplyFallback(replyEvent);
+            lastEventInThread = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
+            if (lastEventInThread) {
+                lastEventInThread = await this.stripMatrixReplyFallback(lastEventInThread);
             } else {
                 log.warn("Could not find matrix event for parent reply", message.thread_ts);
             }
         }
 
-        let previousEvent: EventEntry | null = null;
-        if (message.previous_message?.ts) {
-            previousEvent = await this.main.datastore.getEventBySlackId(this.SlackChannelId, message.previous_message.ts);
-        }
-
         const parser = new SlackMessageParser(
-            this.MatrixRoomId,
             this.main.botIntent,
             this.main.datastore,
             this.main.rooms,
             this.main.ghostStore,
             this.main,
         );
-        const parsedMessage = await parser.parse(message, slackClient, replyEvent);
+        const parsedMessage = await parser.parse(message, slackClient);
         if (!parsedMessage) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
             return;
         }
 
-        if (parsedMessage["m.new_content"] && previousEvent) {
-            // It's an edit, we need to set the id of the event we're editing.
-            parsedMessage["m.relates_to"] = {
-                rel_type: "m.replace",
-                event_id: previousEvent.eventId,
-            };
-            const record = parsedMessage as unknown as Record<string, string>;
-            return ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
-        }
-
-        if (message.thread_ts !== undefined && replyEvent) {
+        // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
+        // Edits still work correctly in threads nonetheless.
+        const isEdit = parsedMessage["m.new_content"];
+        if (message.thread_ts && lastEventInThread && !isEdit) {
             return await ghost.sendInThread(
-                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, replyEvent, message.thread_ts,
+                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, lastEventInThread, message.thread_ts,
             );
         }
 

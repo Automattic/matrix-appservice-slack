@@ -1,16 +1,17 @@
-import {ISlackFile, ISlackMessageEvent} from "./BaseSlackHandler";
-import * as Slackdown from "Slackdown";
+import {ISlackEventMessageAttachment, ISlackMessageEvent, ISlackFile} from "./BaseSlackHandler";
+import * as Slackdown from "slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
-import {IMatrixReplyEvent} from "./SlackGhost";
+import {IMatrixEventContent} from "./SlackGhost";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
 import {Intent, Logger} from "matrix-appservice-bridge";
 import {ConversationsInfoResponse} from "./SlackResponses";
-import {Datastore} from "./datastore/Models";
+import {Datastore, EventEntry} from "./datastore/Models";
 import {SlackGhostStore} from "./SlackGhostStore";
 import {Main} from "./Main";
 import * as emoji from "node-emoji";
+import MarkdownIt from "markdown-it";
 
 const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
 
@@ -31,8 +32,9 @@ export class SlackMessageParser {
         "message_changed",
     ];
 
+    private readonly markdown: MarkdownIt;
+
     constructor(
-        private readonly matrixRoomId: string,
         private readonly matrixBotIntent: Intent,
         private readonly datastore: Datastore,
         private readonly roomStore: SlackRoomStore,
@@ -42,12 +44,18 @@ export class SlackMessageParser {
         //       Also, there are currently two implementations of getTeamDomainForMessage() in the codebase.
         //       There should be a single one.
         private readonly main: Main,
-    ) {}
+    ) {
+        this.markdown = new MarkdownIt({
+            // Allow HTML to pass through as is.
+            html: true,
+            // Convert \n to <br> in paragraphs.
+            breaks: true,
+        });
+    }
 
     async parse(
         message: ISlackMessageEvent,
         slackClient: WebClient,
-        replyEvent: IMatrixReplyEvent | null,
     ): Promise<TextualMessageEventContent | null> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
@@ -61,25 +69,16 @@ export class SlackMessageParser {
             };
         }
 
+        let text = "";
         if (message.attachments) {
-            // noinspection LoopStatementThatDoesntLoopJS
             for (const attachment of message.attachments) {
-                message.text = attachment.fallback;
-                if (attachment.text) {
-                    message.text = `${message.text}: ${attachment.text}`;
-                    if (attachment.title_link) {
-                        message.text = `${message.text} [${attachment.title_link}]`;
-                    }
-                }
-                break;
+                text += this.parseAttachment(attachment) ?? "";
             }
-            if (message.text === "") {
-                return null;
-            }
+        } else {
+            text = message.text || "";
         }
 
-        let text = message.text;
-        if (!text) {
+        if (text === "") {
             return null;
         }
 
@@ -91,11 +90,54 @@ export class SlackMessageParser {
         const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain);
 
         if (subtype === "message_changed" && message.previous_message?.text) {
+            let previousEvent: EventEntry | null = null;
+            if (message.previous_message?.ts) {
+                previousEvent = await this.datastore.getEventBySlackId(message.channel, message.previous_message.ts);
+            }
+
+            // If the event we're editing was not found, we consider this to be a new message.
+            if (!previousEvent) {
+                log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
+                return parsedMessage;
+            }
+
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage, replyEvent);
+            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent);
         }
 
         return parsedMessage;
+    }
+
+    private parseAttachment(attachment: ISlackEventMessageAttachment): string {
+        if (!attachment.text) {
+            return attachment.fallback;
+        }
+
+        let text = "";
+
+        if (attachment.title) {
+            if (attachment.title_link) {
+                text += `**[${attachment.title}](${attachment.title_link})**\n`;
+            } else {
+                text += `**${attachment.title}**\n`;
+            }
+        }
+
+        if (attachment.author_name) {
+            text += `**${attachment.author_name}**\n`;
+        }
+
+        text += `${attachment.text}`;
+
+        // Quote the whole attachment.
+        text = `> ${text}`;
+        text = text.replaceAll("\n", "\n> ");
+
+        if (attachment.pretext) {
+            text = `${attachment.pretext}\n${text}`;
+        }
+
+        return text;
     }
 
     private async doParse(
@@ -119,48 +161,26 @@ export class SlackMessageParser {
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
         body = body.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
 
-        // TODO: Slack's markdown is their own thing that isn't really markdown,
-        // but the only parser we have for it is slackdown. However, Matrix expects
-        // a variant of markdown that is in the realm of sanity. Currently text
-        // will be slack's markdown until we've got a slack -> markdown parser.
+        // Convert plain text body to HTML.
+        // We first run it through Slackdown, which will convert some elements to HTML.
+        // Then we pass it through the markdown renderer, while letting existing HTML through.
         let formattedBody: string = Slackdown.parse(body);
+        formattedBody = this.markdown.render(formattedBody).trim();
+        formattedBody = formattedBody.replaceAll("\n", "");
 
-        // Parse blockquotes.
-        const blocks: string[] = [];
-        let currentQuote = "";
-        const quoteDelimiter = "> ";
-        for (const line of formattedBody.split("\n")) {
-            if (line.startsWith(quoteDelimiter)) {
-                currentQuote += line.replace(quoteDelimiter, "") + "<br>";
-            } else {
-                if (currentQuote !== "") {
-                    blocks.push(`<blockquote>${currentQuote}</blockquote>`);
-                }
-                blocks.push(`${line}<br>`);
-                currentQuote = "";
-            }
-        }
-        if (currentQuote !== "") {
-            blocks.push(`<blockquote>${currentQuote}</blockquote>`);
+        if (formattedBody === `<p>${body}</p>`) {
+            // Formatted body is the same as plain text body, just wrapped in a paragraph.
+            // So we consider the message to be plain text.
+            formattedBody = "";
         }
 
-        if (blocks.length > 0) {
-            formattedBody = blocks.join("");
-        }
-        formattedBody = formattedBody.replace("\n", "<br>");
-
-        return {
-            msgtype: "m.text",
-            format: "org.matrix.custom.html",
-            body,
-            formatted_body: formattedBody,
-        };
+        return this.makeEventContent(body, formattedBody);
     }
 
     private parseEdit(
         parsedMessage: TextualMessageEventContent,
         parsedPreviousMessage: TextualMessageEventContent,
-        replyEvent: IMatrixReplyEvent | null
+        previousEvent: EventEntry
     ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
         const prev   = substitutions.htmlEscape(edits.prev);
@@ -168,56 +188,35 @@ export class SlackMessageParser {
         const before = substitutions.htmlEscape(edits.before);
         const after  = substitutions.htmlEscape(edits.after);
 
-        let body =
+        const body =
             `(edited) ${edits.before} ${edits.prev} ${edits.after} => ` +
             `${edits.before} ${edits.curr} ${edits.after}`;
 
-        let formattedBody =
+        const formattedBody =
             `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
             `<font color="green"> ${curr} </font> ${after}`;
 
-        let newBody = parsedMessage.body;
-        let newFormattedBody =  parsedMessage.formatted_body;
 
-        if (replyEvent) {
-            const bodyFallback = this.getFallbackText(replyEvent);
-            const formattedFallback = this.getFallbackHtml(this.matrixRoomId, replyEvent);
-            body = `${bodyFallback}\n\n${body}`;
-            formattedBody = formattedFallback + formattedBody;
-            newBody = bodyFallback + parsedMessage.body;
-            newFormattedBody = formattedFallback + parsedMessage.formatted_body;
+        const newBody = parsedMessage.body;
+        const newFormattedBody = parsedMessage.formatted_body ?? "";
+
+        let relatesTo = {};
+        if (previousEvent) {
+            relatesTo = {
+                "m.relates_to": {
+                    rel_type: "m.replace",
+                    event_id: previousEvent.eventId,
+                },
+            };
         }
 
         return {
-            msgtype: "m.text",
-            format: "org.matrix.custom.html",
-            body,
-            formatted_body: formattedBody,
+            ...this.makeEventContent(body, formattedBody),
             "m.new_content": {
-                msgtype: "m.text",
-                format: "org.matrix.custom.html",
-                body: newBody,
-                formatted_body: newFormattedBody,
-            }
+                ...this.makeEventContent(newBody, newFormattedBody),
+            },
+            ...relatesTo,
         };
-    }
-
-    private getFallbackHtml(roomId: string, replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        let originalHtml = (replyEvent.content ? replyEvent.content.formatted_body : "") || null;
-        if (originalHtml === null) {
-            originalHtml = originalBody;
-        }
-        return "<mx-reply><blockquote>"
-            + `<a href="https://matrix.to/#/${roomId}/${replyEvent.event_id}">In reply to</a>`
-            + `<a href="https://matrix.to/#/${replyEvent.sender}">${replyEvent.sender}</a>`
-            + `<br />${originalHtml}`
-            + "</blockquote></mx-reply>";
-    }
-
-    private getFallbackText(replyEvent: IMatrixReplyEvent): string {
-        const originalBody = (replyEvent.content ? replyEvent.content.body : "") || "";
-        return `> <${replyEvent.sender}> ${originalBody.split("\n").join("\n> ")}`;
     }
 
     private async replaceChannelIdsWithNames(text: string, slackClient: WebClient): Promise<string> {
@@ -302,5 +301,19 @@ export class SlackMessageParser {
         }
 
         return text.replace(file.permalink, `${file.url_private}?pub_secret=${pubSecret[1]}`);
+    }
+
+    private makeEventContent(body: string, formattedBody?: string | null): IMatrixEventContent {
+        const content: IMatrixEventContent = {
+            msgtype: "m.text",
+            body,
+        };
+
+        if (formattedBody && formattedBody !== "") {
+            content.format = "org.matrix.custom.html";
+            content.formatted_body = formattedBody;
+        }
+
+        return content;
     }
 }

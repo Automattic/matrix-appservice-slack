@@ -28,12 +28,17 @@ const log = new Logger("SlackGhost");
 // How long in milliseconds to cache user info lookups.
 const USER_CACHE_TIMEOUT = 10 * 60 * 1000;  // 10 minutes
 
+export interface IMatrixEventContent {
+    msgtype: "m.text",
+    body: string;
+    format?: string;
+    formatted_body?: string;
+}
+
 export interface IMatrixReplyEvent {
     sender: string;
     event_id: string;
-    content: {
-        body: string;
-        formatted_body?: string;
+    content: IMatrixEventContent & {
         "m.relates_to"?: {
             rel_type?: string,
             event_id?: string,
@@ -342,7 +347,7 @@ export class SlackGhost {
         slackTeamId: string,
         slackChannelId: string,
         slackEventTs: string,
-        replyEvent: IMatrixReplyEvent,
+        lastEventInThread: IMatrixReplyEvent,
         slackThreadTs: string,
     ): Promise<void> {
         let msg: Record<string, unknown> = {
@@ -350,11 +355,11 @@ export class SlackGhost {
                 "rel_type": "m.thread",
                 // If the reply event is part of a thread, continue the thread.
                 // Otherwise, attach a thread to the reply event.
-                "event_id": replyEvent.content["m.relates_to"]?.event_id ?? replyEvent.event_id,
+                "event_id": lastEventInThread.content["m.relates_to"]?.event_id ?? lastEventInThread.event_id,
                 // Say that our reply is a thread fallback so clients that support threads can ignore it
                 "is_falling_back": true,
                 "m.in_reply_to": {
-                    event_id: replyEvent.event_id,
+                    event_id: lastEventInThread.event_id,
                 },
             },
             ...content,
