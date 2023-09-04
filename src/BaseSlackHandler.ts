@@ -41,6 +41,11 @@ export interface ISlackEventMessageAttachment {
     title?: string;
     title_link?: string;
     author_name?: string;
+    blocks?: ISlackEventMessageBlock[];
+}
+
+export interface ISlackEventMessageBlock {
+    type: string,
 }
 
 export interface ISlackMessageEvent extends ISlackEvent {
@@ -63,6 +68,7 @@ export interface ISlackMessageEvent extends ISlackEvent {
         user: string;
     };
     attachments?: ISlackEventMessageAttachment[];
+    blocks?: ISlackEventMessageBlock[];
     // For message_changed
     message?: ISlackMessageEvent;
     previous_message?: ISlackMessageEvent;

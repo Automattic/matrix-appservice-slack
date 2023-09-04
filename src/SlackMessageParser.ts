@@ -1,4 +1,9 @@
-import {ISlackEventMessageAttachment, ISlackMessageEvent, ISlackFile} from "./BaseSlackHandler";
+import {
+    ISlackEventMessageAttachment,
+    ISlackMessageEvent,
+    ISlackFile,
+    ISlackEventMessageBlock
+} from "./BaseSlackHandler";
 import * as Slackdown from "slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
@@ -70,6 +75,13 @@ export class SlackMessageParser {
         }
 
         let text = "";
+
+        if (message.blocks) {
+            for (const block of message.blocks) {
+                text += this.parseBlock(block) ?? "";
+            }
+        }
+
         if (message.attachments) {
             for (const attachment of message.attachments) {
                 text += this.parseAttachment(attachment) ?? "";
@@ -140,6 +152,11 @@ export class SlackMessageParser {
         }
 
         return text;
+    }
+
+    private parseBlock(block: ISlackEventMessageBlock): string {
+        // TODO
+        return "";
     }
 
     private async doParse(
