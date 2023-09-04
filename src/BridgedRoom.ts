@@ -1028,7 +1028,6 @@ export class BridgedRoom {
 
         ghost.bumpATime();
         this.slackATime = Date.now() / 1000;
-
         const subtype = message.subtype;
 
         // Log activity, but don't await the answer or throw errors

@@ -196,26 +196,18 @@ export class SlackMessageParser {
             `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
             `<font color="green"> ${curr} </font> ${after}`;
 
-
         const newBody = parsedMessage.body;
         const newFormattedBody = parsedMessage.formatted_body ?? "";
-
-        let relatesTo = {};
-        if (previousEvent) {
-            relatesTo = {
-                "m.relates_to": {
-                    rel_type: "m.replace",
-                    event_id: previousEvent.eventId,
-                },
-            };
-        }
 
         return {
             ...this.makeEventContent(body, formattedBody),
             "m.new_content": {
                 ...this.makeEventContent(newBody, newFormattedBody),
             },
-            ...relatesTo,
+            "m.relates_to": {
+                rel_type: "m.replace",
+                event_id: previousEvent.eventId,
+            },
         };
     }
 
