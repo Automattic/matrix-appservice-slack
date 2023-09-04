@@ -1,5 +1,5 @@
 import {ISlackEventMessageAttachment, ISlackMessageEvent, ISlackFile} from "./BaseSlackHandler";
-import * as Slackdown from "Slackdown";
+import * as Slackdown from "slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
 import {IMatrixEventContent} from "./SlackGhost";
