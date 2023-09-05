@@ -78,13 +78,13 @@ export class SlackMessageParser {
 
         if (message.blocks) {
             for (const block of message.blocks) {
-                text += this.parseBlock(block) ?? "";
+                text += this.parseBlock(block);
             }
         }
 
         if (message.attachments) {
             for (const attachment of message.attachments) {
-                text += this.parseAttachment(attachment) ?? "";
+                text += this.parseAttachment(attachment);
             }
         }
 
