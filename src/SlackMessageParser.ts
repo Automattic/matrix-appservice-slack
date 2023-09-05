@@ -163,23 +163,26 @@ export class SlackMessageParser {
         const {type, text, fields} = block;
         let content = "";
 
-        if (type === "section") {
-            if (text) {
-                content += `${text.text}\n`;
+        switch (type) {
+            case "header":
+                if (text) {
+                    content += `# ${text.text}\n`;
+                }
+                break;
+            case "section":
+                if (text) {
+                    content += `${text.text}\n`;
+                    if (fields) {
+                        // If there's both text and fields, separate them with an empty line.
+                        content += "\n";
+                    }
+                }
                 if (fields) {
-                    // If there's both text and fields, separate them with an empty line.
-                    content += "\n";
+                    for (const field of fields) {
+                        content += `${field.text}\n`;
+                    }
                 }
-            }
-            if (fields) {
-                for (const field of fields) {
-                    content += `${field.text}\n`;
-                }
-            }
-        } else if (type === "header") {
-            if (text) {
-                content += `# ${text.text}\n`;
-            }
+                break;
         }
 
         return `${content}\n`;
