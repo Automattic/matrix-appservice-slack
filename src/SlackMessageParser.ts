@@ -160,8 +160,16 @@ export class SlackMessageParser {
     }
 
     private parseBlock(block: ISlackEventMessageBlock): string {
-        // TODO
-        return "";
+        const {type, text} = block;
+        let content = "";
+
+        if (type === "section") {
+            if (text) {
+                content += `${text.text}\n`;
+            }
+        }
+
+        return content;
     }
 
     private async doParse(

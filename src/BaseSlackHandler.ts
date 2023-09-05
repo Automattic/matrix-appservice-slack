@@ -46,6 +46,9 @@ export interface ISlackEventMessageAttachment {
 
 export interface ISlackEventMessageBlock {
     type: string,
+    text?: {
+        text: string,
+    }
 }
 
 export interface ISlackMessageEvent extends ISlackEvent {
