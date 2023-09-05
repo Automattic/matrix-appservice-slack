@@ -125,8 +125,12 @@ export class SlackMessageParser {
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
         let text = "";
 
-        if (!attachment.text) {
-            text = attachment.fallback;
+        if (attachment.blocks) {
+            for (const block of attachment.blocks) {
+                text += this.parseBlock(block);
+            }
+        } else if (!attachment.text) {
+            text += attachment.fallback;
         } else {
             if (attachment.title) {
                 if (attachment.title_link) {
