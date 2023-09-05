@@ -123,39 +123,39 @@ export class SlackMessageParser {
     }
 
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
-        let text = "";
+        let content = "";
 
         if (attachment.blocks) {
             for (const block of attachment.blocks) {
-                text += this.parseBlock(block);
+                content += this.parseBlock(block);
             }
         } else if (!attachment.text) {
-            text += attachment.fallback;
+            content += attachment.fallback;
         } else {
             if (attachment.title) {
                 if (attachment.title_link) {
-                    text += `**[${attachment.title}](${attachment.title_link})**\n`;
+                    content += `**[${attachment.title}](${attachment.title_link})**\n`;
                 } else {
-                    text += `**${attachment.title}**\n`;
+                    content += `**${attachment.title}**\n`;
                 }
             }
 
             if (attachment.author_name) {
-                text += `**${attachment.author_name}**\n`;
+                content += `**${attachment.author_name}**\n`;
             }
 
-            text += `${attachment.text}`;
+            content += `${attachment.text}`;
         }
 
         // Quote the whole attachment.
-        text = `> ${text}`;
-        text = text.replaceAll("\n", "\n> ");
+        content = `> ${content}`;
+        content = content.replaceAll("\n", "\n> ");
 
         if (attachment.pretext) {
-            text = `${attachment.pretext}\n${text}`;
+            content = `${attachment.pretext}\n${content}`;
         }
 
-        return text;
+        return content;
     }
 
     private parseBlock(block: ISlackEventMessageBlock): string {
