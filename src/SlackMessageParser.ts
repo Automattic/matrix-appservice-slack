@@ -166,6 +166,10 @@ export class SlackMessageParser {
         if (type === "section") {
             if (text) {
                 content += `${text.text}\n`;
+                if (fields) {
+                    // If there's both text and fields, separate them with an empty line.
+                    content += "\n";
+                }
             }
             if (fields) {
                 for (const field of fields) {
