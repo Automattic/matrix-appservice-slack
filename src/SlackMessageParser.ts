@@ -172,9 +172,13 @@ export class SlackMessageParser {
                     content += `${field.text}\n`;
                 }
             }
+        } else if (type === "header") {
+            if (text) {
+                content += `# ${text.text}\n`;
+            }
         }
 
-        return content;
+        return `${content}\n`;
     }
 
     private async doParse(
