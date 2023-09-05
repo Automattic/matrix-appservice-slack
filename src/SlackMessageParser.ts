@@ -160,7 +160,7 @@ export class SlackMessageParser {
     }
 
     private parseBlock(block: ISlackEventMessageBlock): string {
-        const {type, text, fields} = block;
+        const {type, text, fields, elements} = block;
         let content = "";
 
         switch (type) {
@@ -180,6 +180,15 @@ export class SlackMessageParser {
                 if (fields) {
                     for (const field of fields) {
                         content += `${field.text}\n`;
+                    }
+                }
+                break;
+            case "context":
+                if (elements) {
+                    for (const element of elements) {
+                        if (element.text) {
+                            content += `${element.text}\n`;
+                        }
                     }
                 }
                 break;
