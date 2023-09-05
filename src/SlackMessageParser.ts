@@ -192,6 +192,9 @@ export class SlackMessageParser {
                     }
                 }
                 break;
+            case "divider":
+                content += `----\n`;
+                break;
         }
 
         return `${content}\n`;
