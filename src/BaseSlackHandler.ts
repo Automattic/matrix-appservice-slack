@@ -49,6 +49,9 @@ export interface ISlackEventMessageBlock {
     text?: {
         text: string,
     }
+    fields?: [{
+        text: string,
+    }]
 }
 
 export interface ISlackMessageEvent extends ISlackEvent {
