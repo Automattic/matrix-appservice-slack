@@ -1064,7 +1064,8 @@ export class BridgedRoom {
             this.main.datastore,
             this.main.rooms,
             this.main.ghostStore,
-            this.main,
+            this.main.bridgeMatrixBot,
+            this.main
         );
         const parsedMessage = await parser.parse(message, slackClient);
         if (!parsedMessage) {

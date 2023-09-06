@@ -18,7 +18,8 @@ import {
     Bridge, BridgeBlocker, PrometheusMetrics, StateLookup,
     Logger, Intent, UserMembership, WeakEvent, PresenceEvent,
     AppService, AppServiceRegistration, UserActivityState, UserActivityTracker,
-    UserActivityTrackerConfig, MembershipQueue, PowerLevelContent, StateLookupEvent } from "matrix-appservice-bridge";
+    UserActivityTrackerConfig, MembershipQueue, PowerLevelContent, StateLookupEvent, AppServiceBot
+} from "matrix-appservice-bridge";
 import { Gauge, Counter } from "prom-client";
 import * as path from "path";
 import * as randomstring from "randomstring";
@@ -112,6 +113,10 @@ export class Main {
 
     public get ghostStore(): SlackGhostStore {
         return this.ghosts;
+    }
+
+    public get bridgeMatrixBot(): AppServiceBot {
+        return this.bridge.getBot();
     }
 
     public readonly oauth2: OAuth2|null = null;
@@ -1652,8 +1657,7 @@ export class Main {
 
     public async getClientForPrivateChannel(teamId: string, roomId: string): Promise<WebClient|null> {
         // This only works for private rooms
-        const bot = this.bridge.getBot();
-        const members = Object.keys(await bot.getJoinedMembers(roomId));
+        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(roomId));
 
         for (const matrixId of members) {
             const client = await this.clientFactory.getClientForUser(teamId, matrixId);

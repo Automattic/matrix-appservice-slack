@@ -10,7 +10,7 @@ import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
 import {IMatrixEventContent} from "./SlackGhost";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
-import {Intent, Logger} from "matrix-appservice-bridge";
+import {AppServiceBot, Intent, Logger} from "matrix-appservice-bridge";
 import {ConversationsInfoResponse} from "./SlackResponses";
 import {Datastore, EventEntry} from "./datastore/Models";
 import {SlackGhostStore} from "./SlackGhostStore";
@@ -44,6 +44,7 @@ export class SlackMessageParser {
         private readonly datastore: Datastore,
         private readonly roomStore: SlackRoomStore,
         private readonly ghostStore: SlackGhostStore,
+        private readonly bridgeMatrixBot: AppServiceBot,
         // Main is only for getTeamDomainForMessage()
         // TODO: Refactor getTeamDomainForMessage() into something that can be injected.
         //       Also, there are currently two implementations of getTeamDomainForMessage() in the codebase.
