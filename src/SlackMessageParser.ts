@@ -88,7 +88,7 @@ export class SlackMessageParser {
             }
         }
 
-        if (text === "") {
+        if (text.trim() === "") {
             text = message.text || "";
         }
 
@@ -195,6 +195,10 @@ export class SlackMessageParser {
             case "divider":
                 content += `----\n`;
                 break;
+        }
+
+        if (content === "") {
+            return "";
         }
 
         return `${content}\n`;
