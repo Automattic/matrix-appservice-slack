@@ -1,4 +1,9 @@
-import {ISlackEventMessageAttachment, ISlackMessageEvent, ISlackFile} from "./BaseSlackHandler";
+import {
+    ISlackEventMessageAttachment,
+    ISlackMessageEvent,
+    ISlackFile,
+    ISlackEventMessageBlock
+} from "./BaseSlackHandler";
 import * as Slackdown from "slackdown";
 import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
@@ -70,11 +75,20 @@ export class SlackMessageParser {
         }
 
         let text = "";
+
+        if (message.blocks) {
+            for (const block of message.blocks) {
+                text += this.parseBlock(block);
+            }
+        }
+
         if (message.attachments) {
             for (const attachment of message.attachments) {
-                text += this.parseAttachment(attachment) ?? "";
+                text += this.parseAttachment(attachment);
             }
-        } else {
+        }
+
+        if (text === "") {
             text = message.text || "";
         }
 
@@ -109,35 +123,81 @@ export class SlackMessageParser {
     }
 
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
-        if (!attachment.text) {
-            return attachment.fallback;
-        }
+        const {blocks, pretext, text, fallback, title, title_link, author_name} = attachment;
+        let content = "";
 
-        let text = "";
-
-        if (attachment.title) {
-            if (attachment.title_link) {
-                text += `**[${attachment.title}](${attachment.title_link})**\n`;
-            } else {
-                text += `**${attachment.title}**\n`;
+        if (blocks) {
+            for (const block of blocks) {
+                content += this.parseBlock(block);
             }
-        }
+        } else if (!text) {
+            content += fallback;
+        } else {
+            if (title) {
+                if (title_link) {
+                    content += `**[${title}](${title_link})**\n`;
+                } else {
+                    content += `**${title}**\n`;
+                }
+            }
 
-        if (attachment.author_name) {
-            text += `**${attachment.author_name}**\n`;
-        }
+            if (author_name) {
+                content += `**${author_name}**\n`;
+            }
 
-        text += `${attachment.text}`;
+            content += text;
+        }
 
         // Quote the whole attachment.
-        text = `> ${text}`;
-        text = text.replaceAll("\n", "\n> ");
+        content = `> ${content}`;
+        content = content.replaceAll("\n", "\n> ");
 
-        if (attachment.pretext) {
-            text = `${attachment.pretext}\n${text}`;
+        if (pretext) {
+            content = `${pretext}\n${content}`;
         }
 
-        return text;
+        return content;
+    }
+
+    private parseBlock(block: ISlackEventMessageBlock): string {
+        const {type, text, fields, elements} = block;
+        let content = "";
+
+        switch (type) {
+            case "header":
+                if (text) {
+                    content += `# ${text.text}\n`;
+                }
+                break;
+            case "section":
+                if (text) {
+                    content += `${text.text}\n`;
+                    if (fields) {
+                        // If there's both text and fields, separate them with an empty line.
+                        content += "\n";
+                    }
+                }
+                if (fields) {
+                    for (const field of fields) {
+                        content += `${field.text}\n`;
+                    }
+                }
+                break;
+            case "context":
+                if (elements) {
+                    for (const element of elements) {
+                        if (element.text) {
+                            content += `${element.text}\n`;
+                        }
+                    }
+                }
+                break;
+            case "divider":
+                content += `----\n`;
+                break;
+        }
+
+        return `${content}\n`;
     }
 
     private async doParse(
@@ -196,26 +256,18 @@ export class SlackMessageParser {
             `<i>(edited)</i> ${before} <font color="red"> ${prev} </font> ${after} =&gt; ${before}` +
             `<font color="green"> ${curr} </font> ${after}`;
 
-
         const newBody = parsedMessage.body;
         const newFormattedBody = parsedMessage.formatted_body ?? "";
-
-        let relatesTo = {};
-        if (previousEvent) {
-            relatesTo = {
-                "m.relates_to": {
-                    rel_type: "m.replace",
-                    event_id: previousEvent.eventId,
-                },
-            };
-        }
 
         return {
             ...this.makeEventContent(body, formattedBody),
             "m.new_content": {
                 ...this.makeEventContent(newBody, newFormattedBody),
             },
-            ...relatesTo,
+            "m.relates_to": {
+                rel_type: "m.replace",
+                event_id: previousEvent.eventId,
+            },
         };
     }
 
