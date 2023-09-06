@@ -918,7 +918,7 @@ export class BridgedRoom {
                 formatted_body: `<a href="${link}">${file.name}</a>`,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, slackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, channelId, slackEventId);
             return;
         }
 
@@ -957,7 +957,7 @@ export class BridgedRoom {
                 formatted_body: htmlCode,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, slackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, channelId, slackEventId);
             return;
         }
 
@@ -992,7 +992,6 @@ export class BridgedRoom {
         await ghost.sendMessage(
             this.matrixRoomId,
             slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri),
-            slackTeamId,
             channelId,
             slackEventId,
         );
@@ -1078,12 +1077,12 @@ export class BridgedRoom {
         const isEdit = parsedMessage["m.new_content"];
         if (message.thread_ts && lastEventInThread && !isEdit) {
             return await ghost.sendInThread(
-                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, lastEventInThread, message.thread_ts,
+                this.MatrixRoomId, parsedMessage, this.SlackChannelId, eventTS, lastEventInThread,
             );
         }
 
         const record = parsedMessage as unknown as Record<string, string>;
-        return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
+        return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackChannelId, eventTS);
     }
 
     public async onMatrixTyping(currentlyTyping: string[]) {

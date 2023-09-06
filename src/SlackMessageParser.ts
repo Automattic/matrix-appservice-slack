@@ -122,6 +122,11 @@ export class SlackMessageParser {
             return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent);
         }
 
+        const externalUrl = await this.getExternalUrl(message);
+        if (externalUrl) {
+            parsedMessage.external_url = externalUrl;
+        }
+
         return parsedMessage;
     }
 
@@ -276,6 +281,24 @@ export class SlackMessageParser {
                 event_id: previousEvent.eventId,
             },
         };
+    }
+
+    private async getExternalUrl(message: ISlackMessageEvent): Promise<string | null> {
+        if (!message.team_id) {
+            return null;
+        }
+
+        const team = await this.datastore.getTeam(message.team_id);
+        if (!team || !team.domain) {
+            return null;
+        }
+
+        let externalUrl = `https://${team.domain}.slack.com/archives/${message.channel}/p${message.ts.replace(".", "")}`;
+        if (message.thread_ts) {
+            externalUrl = `${externalUrl}?thread_ts=${message.thread_ts.replace(".", "")}`;
+        }
+
+        return externalUrl;
     }
 
     private async getClientForPrivateChannel(teamId: string, roomId: string): Promise<WebClient | null> {

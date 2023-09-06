@@ -344,13 +344,11 @@ export class SlackGhost {
     public async sendInThread(
         roomId: string,
         content: TextualMessageEventContent,
-        slackTeamId: string,
         slackChannelId: string,
         slackEventTs: string,
         lastEventInThread: IMatrixReplyEvent,
-        slackThreadTs: string,
     ): Promise<void> {
-        let msg: Record<string, unknown> = {
+        const msg: Record<string, unknown> = {
             "m.relates_to": {
                 "rel_type": "m.thread",
                 // If the reply event is part of a thread, continue the thread.
@@ -365,14 +363,12 @@ export class SlackGhost {
             ...content,
         };
 
-        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackChannelId, slackEventTs, slackThreadTs);
-        await this.sendMessage(roomId, msg, slackTeamId, slackChannelId, slackEventTs);
+        await this.sendMessage(roomId, msg, slackChannelId, slackEventTs);
     }
 
     public async sendMessage(
         roomId: string,
         msg: Record<string, unknown>,
-        slackTeamId: string,
         slackChannelId: string,
         slackEventTs: string
     ): Promise<{ event_id: string }> {
@@ -380,7 +376,6 @@ export class SlackGhost {
             throw Error('No intent associated with ghost');
         }
 
-        msg = await this.appendExternalUrlToMessage(msg, slackTeamId, slackChannelId, slackEventTs);
         const matrixEvent = await this._intent.sendMessage(roomId, msg) as {event_id?: unknown};
 
         if (typeof matrixEvent !== 'object' || !matrixEvent || typeof matrixEvent.event_id !== 'string') {
@@ -397,31 +392,6 @@ export class SlackGhost {
         return {
             event_id: matrixEvent.event_id,
         };
-    }
-
-    private async appendExternalUrlToMessage(
-        msg: Record<string, unknown>,
-        slackTeamId: string,
-        slackChannelId: string,
-        slackEventTs: string,
-        slackThreadTs?: string,
-    ): Promise<Record<string, unknown>> {
-        if (msg.external_url || !slackTeamId) {
-            return msg;
-        }
-
-        const team = await this.datastore.getTeam(slackTeamId);
-        if (!team || !team.domain) {
-            return msg;
-        }
-
-        let externalUrl = `https://${team.domain}.slack.com/archives/${slackChannelId}/p${slackEventTs.replace(".", "")}`;
-        if (slackThreadTs) {
-            externalUrl = `${externalUrl}?thread_ts=${slackThreadTs.replace(".", "")}`;
-        }
-
-        msg.external_url = externalUrl;
-        return msg;
     }
 
     public async sendReaction(
