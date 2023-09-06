@@ -881,11 +881,7 @@ export class BridgedRoom {
         this.dirty = true;
     }
 
-    private async handleSlackMessageFile(file: ISlackFile, slackEventId: string, ghost: SlackGhost) {
-        if (!this.SlackTeamId) {
-            throw Error("SlackTeamId must be set");
-        }
-
+    private async handleSlackMessageFile(file: ISlackFile, slackEventId: string, slackTeamId: string, ghost: SlackGhost) {
         const maxUploadSize = this.main.config.homeserver.max_upload_size;
         const filePrivateUrl = file.url_private;
         if (!filePrivateUrl) {
@@ -900,9 +896,9 @@ export class BridgedRoom {
 
         let sendAsLink = false;
         let authToken = this.SlackClient?.token;
-        if (this.slackTeamId && (this.SlackType === "channel" || this.SlackType === "group") && this.isPrivate) {
+        if ((this.SlackType === "channel" || this.SlackType === "group") && this.isPrivate) {
             // This is a private channel, so bots cannot see images.
-            const userClient = await this.main.getClientForPrivateChannel(this.slackTeamId, this.matrixRoomId);
+            const userClient = await this.main.getClientForPrivateChannel(slackTeamId, this.matrixRoomId);
             authToken = userClient?.token;
         }
 
@@ -922,7 +918,7 @@ export class BridgedRoom {
                 formatted_body: `<a href="${link}">${file.name}</a>`,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, slackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -961,7 +957,7 @@ export class BridgedRoom {
                 formatted_body: htmlCode,
                 msgtype: "m.text",
             };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
+            await ghost.sendMessage(this.matrixRoomId, messageContent, slackTeamId, channelId, slackEventId);
             return;
         }
 
@@ -996,7 +992,7 @@ export class BridgedRoom {
         await ghost.sendMessage(
             this.matrixRoomId,
             slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri),
-            this.SlackTeamId,
+            slackTeamId,
             channelId,
             slackEventId,
         );
@@ -1042,7 +1038,10 @@ export class BridgedRoom {
 
         for (const file of message.files || []) {
             try {
-                await this.handleSlackMessageFile(file, eventTS, ghost);
+                if (!this.SlackTeamId) {
+                    throw Error("SlackTeamId must be set");
+                }
+                await this.handleSlackMessageFile(file, eventTS, this.SlackTeamId, ghost);
             } catch (ex) {
                 log.warn(`Couldn't handle Slack file, ignoring:`, ex);
             }
