@@ -1047,8 +1047,7 @@ export class BridgedRoom {
         }
 
         let lastEventInThread: IMatrixReplyEvent | null = null;
-        // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
-        if (message.thread_ts || (message.message && message.message.thread_ts)) {
+        if (message.thread_ts) {
             lastEventInThread = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
             if (lastEventInThread) {
                 lastEventInThread = await this.stripMatrixReplyFallback(lastEventInThread);
@@ -1075,7 +1074,7 @@ export class BridgedRoom {
         // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
         // Edits still work correctly in threads nonetheless.
         const isEdit = parsedMessage["m.new_content"];
-        if (message.thread_ts && lastEventInThread && !isEdit) {
+        if (lastEventInThread && !isEdit) {
             return await ghost.sendInThread(
                 this.MatrixRoomId, parsedMessage, this.SlackChannelId, eventTS, lastEventInThread,
             );

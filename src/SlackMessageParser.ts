@@ -105,7 +105,7 @@ export class SlackMessageParser {
 
         const externalUrl = await this.getExternalUrl(message);
         const teamDomain = await this.main.getTeamDomainForMessage(message);
-        const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain);
+        const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain, externalUrl);
 
         if (subtype === "message_changed" && message.previous_message?.text) {
             let previousEvent: EventEntry | null = null;
@@ -116,25 +116,11 @@ export class SlackMessageParser {
             // If the event we're editing was not found, we consider this to be a new message.
             if (!previousEvent) {
                 log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
-                if (externalUrl) {
-                    parsedMessage.external_url = externalUrl;
-                }
                 return parsedMessage;
             }
 
-            const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
-            const parsedEdit = this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent);
-            if (externalUrl) {
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                parsedEdit["m.new_content"].external_url = externalUrl;
-            }
-
-            return parsedEdit;
-        }
-
-        if (externalUrl) {
-            parsedMessage.external_url = externalUrl;
+            const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain, externalUrl);
+            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, externalUrl);
         }
 
         return parsedMessage;
@@ -227,6 +213,7 @@ export class SlackMessageParser {
         slackClient: WebClient,
         channelId: string,
         teamDomain: string | undefined,
+        externalUrl: string | null,
     ): Promise<TextualMessageEventContent> {
         body = await this.replaceChannelIdsWithNames(body, slackClient);
         if (teamDomain) {
@@ -256,13 +243,14 @@ export class SlackMessageParser {
             formattedBody = "";
         }
 
-        return this.makeEventContent(body, formattedBody);
+        return this.makeEventContent(body, formattedBody, externalUrl);
     }
 
     private parseEdit(
         parsedMessage: TextualMessageEventContent,
         parsedPreviousMessage: TextualMessageEventContent,
-        previousEvent: EventEntry
+        previousEvent: EventEntry,
+        externalUrl: string | null,
     ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
         const prev   = substitutions.htmlEscape(edits.prev);
@@ -282,9 +270,9 @@ export class SlackMessageParser {
         const newFormattedBody = parsedMessage.formatted_body ?? "";
 
         return {
-            ...this.makeEventContent(body, formattedBody),
+            ...this.makeEventContent(body, formattedBody, externalUrl),
             "m.new_content": {
-                ...this.makeEventContent(newBody, newFormattedBody),
+                ...this.makeEventContent(newBody, newFormattedBody, externalUrl),
             },
             "m.relates_to": {
                 rel_type: "m.replace",
@@ -408,7 +396,7 @@ export class SlackMessageParser {
         return text.replace(file.permalink, `${file.url_private}?pub_secret=${pubSecret[1]}`);
     }
 
-    private makeEventContent(body: string, formattedBody?: string | null): IMatrixEventContent {
+    private makeEventContent(body: string, formattedBody?: string | null, externalUrl?: string | null): IMatrixEventContent {
         const content: IMatrixEventContent = {
             msgtype: "m.text",
             body,
@@ -417,6 +405,12 @@ export class SlackMessageParser {
         if (formattedBody && formattedBody !== "") {
             content.format = "org.matrix.custom.html";
             content.formatted_body = formattedBody;
+        }
+
+        if (externalUrl) {
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            content.external_url = externalUrl;
         }
 
         return content;
