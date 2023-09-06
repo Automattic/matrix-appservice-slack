@@ -103,6 +103,7 @@ export class SlackMessageParser {
             text = this.replaceFileLinks(text, message.file);
         }
 
+        const externalUrl = await this.getExternalUrl(message);
         const teamDomain = await this.main.getTeamDomainForMessage(message);
         const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain);
 
@@ -115,14 +116,23 @@ export class SlackMessageParser {
             // If the event we're editing was not found, we consider this to be a new message.
             if (!previousEvent) {
                 log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
+                if (externalUrl) {
+                    parsedMessage.external_url = externalUrl;
+                }
                 return parsedMessage;
             }
 
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent);
+            const parsedEdit = this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent);
+            if (externalUrl) {
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                parsedEdit["m.new_content"].external_url = externalUrl;
+            }
+
+            return parsedEdit;
         }
 
-        const externalUrl = await this.getExternalUrl(message);
         if (externalUrl) {
             parsedMessage.external_url = externalUrl;
         }
