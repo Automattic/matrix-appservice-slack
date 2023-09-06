@@ -278,6 +278,19 @@ export class SlackMessageParser {
         };
     }
 
+    private async getClientForPrivateChannel(teamId: string, roomId: string): Promise<WebClient | null> {
+        // This only works for private rooms
+        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(roomId));
+
+        for (const matrixId of members) {
+            const client = await this.slackClientFactory.getClientForUser(teamId, matrixId);
+            if (client) {
+                return client;
+            }
+        }
+        return null;
+    }
+
     private async replaceChannelIdsWithNames(text: string, slackClient: WebClient): Promise<string> {
         let match: RegExpExecArray | null = null;
         while ((match = CHANNEL_ID_REGEX.exec(text)) !== null) {
