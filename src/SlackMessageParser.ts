@@ -17,6 +17,7 @@ import {SlackGhostStore} from "./SlackGhostStore";
 import {Main} from "./Main";
 import * as emoji from "node-emoji";
 import MarkdownIt from "markdown-it";
+import {SlackClientFactory} from "./SlackClientFactory";
 
 const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
 
@@ -45,6 +46,7 @@ export class SlackMessageParser {
         private readonly roomStore: SlackRoomStore,
         private readonly ghostStore: SlackGhostStore,
         private readonly bridgeMatrixBot: AppServiceBot,
+        private readonly slackClientFactory: SlackClientFactory,
         // Main is only for getTeamDomainForMessage()
         // TODO: Refactor getTeamDomainForMessage() into something that can be injected.
         //       Also, there are currently two implementations of getTeamDomainForMessage() in the codebase.
