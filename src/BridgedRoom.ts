@@ -1082,10 +1082,8 @@ export class BridgedRoom {
             );
         }
 
-        if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
-            const record = parsedMessage as unknown as Record<string, string>;
-            return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
-        }
+        const record = parsedMessage as unknown as Record<string, string>;
+        return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
     }
 
     public async onMatrixTyping(currentlyTyping: string[]) {
