@@ -5,7 +5,7 @@ import {
     ISlackEventMessageBlock
 } from "./BaseSlackHandler";
 import * as Slackdown from "slackdown";
-import {TextualMessageEventContent, MessageEventContent} from "matrix-bot-sdk";
+import {TextualMessageEventContent, MessageEventContent, MessageType} from "matrix-bot-sdk";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
@@ -74,7 +74,7 @@ export class SlackMessageParser {
         }
 
         if (subtype === "me_message") {
-            return [this.makeEventContent(message.text || "", null, "m.emote")];
+            return [this.makeTextualEventContent("m.emote", message.text || "")];
         }
 
         const parsedFiles: MessageEventContent[] = [];
@@ -149,7 +149,8 @@ export class SlackMessageParser {
 
         if (parseAsLink) {
             const url = file.public_url_shared ? file.permalink_public : file.url_private;
-            return this.makeEventContent(
+            return this.makeTextualEventContent(
+                "m.text",
                 `${url} (${file.name})`,
                 `<a href="${url}">${file.name}</a>`,
             );
@@ -194,7 +195,7 @@ export class SlackMessageParser {
         formattedBody += substitutions.htmlEscape(content);
         formattedBody += "</code></pre>";
 
-        return this.makeEventContent(body, formattedBody);
+        return this.makeTextualEventContent("m.text", body, formattedBody);
     }
 
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
@@ -312,7 +313,7 @@ export class SlackMessageParser {
             formattedBody = "";
         }
 
-        return this.makeEventContent(body, formattedBody);
+        return this.makeTextualEventContent("m.text", body, formattedBody);
     }
 
     private parseEdit(
@@ -338,9 +339,9 @@ export class SlackMessageParser {
         const newFormattedBody = parsedMessage.formatted_body ?? "";
 
         return {
-            ...this.makeEventContent(body, formattedBody),
+            ...this.makeTextualEventContent("m.text", body, formattedBody),
             "m.new_content": {
-                ...this.makeEventContent(newBody, newFormattedBody),
+                ...this.makeTextualEventContent("m.text", newBody, newFormattedBody),
             },
             "m.relates_to": {
                 rel_type: "m.replace",
@@ -467,17 +468,13 @@ export class SlackMessageParser {
         return channel;
     }
 
-    private makeEventContent(
+    private makeTextualEventContent(
+        messageType: "m.text" | "m.emote",
         body: string,
         formattedBody?: string | null,
-        msgType?: "m.text" | "m.emote",
     ): TextualMessageEventContent {
-        if (!msgType) {
-            msgType = "m.text";
-        }
-
         const content: TextualMessageEventContent = {
-            msgtype: msgType,
+            msgtype: messageType,
             body,
         };
 

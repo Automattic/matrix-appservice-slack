@@ -21,7 +21,7 @@ import { BotsInfoResponse, UsersInfoResponse } from "./SlackResponses";
 import { UserEntry, Datastore } from "./datastore/Models";
 import axios from "axios";
 import {IConfig} from "./IConfig";
-import {TextualMessageEventContent} from "matrix-bot-sdk";
+import {MessageEventContent} from "matrix-bot-sdk";
 
 const log = new Logger("SlackGhost");
 
@@ -343,7 +343,7 @@ export class SlackGhost {
 
     public async sendInThread(
         roomId: string,
-        content: TextualMessageEventContent,
+        content: MessageEventContent,
         slackChannelId: string,
         slackEventTs: string,
         lastEventInThread: IMatrixReplyEvent,
