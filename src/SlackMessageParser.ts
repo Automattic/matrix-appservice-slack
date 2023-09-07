@@ -106,8 +106,10 @@ export class SlackMessageParser {
         const externalUrl = await this.getExternalUrl(message);
         const teamDomain = await this.main.getTeamDomainForMessage(message);
         const parsedMessage = await this.doParse(text, message.channel, teamDomain, externalUrl);
+        const matrixEvents: MessageEventContent[] = [];
 
         if (subtype === "message_changed" && message.previous_message?.text) {
+            // It's an edit.
             let previousEvent: EventEntry | null = null;
             if (message.previous_message?.ts) {
                 previousEvent = await this.datastore.getEventBySlackId(message.channel, message.previous_message.ts);
@@ -116,14 +118,18 @@ export class SlackMessageParser {
             // If the event we're editing was not found, we consider this to be a new message.
             if (!previousEvent) {
                 log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
-                return [parsedMessage, ...parsedFiles];
+                matrixEvents.push(parsedMessage);
+            } else {
+                const parsedPreviousMessage = await this.doParse(message.previous_message.text, message.channel, teamDomain, externalUrl);
+                matrixEvents.push(parsedMessage);
+                return [this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, externalUrl)];
             }
-
-            const parsedPreviousMessage = await this.doParse(message.previous_message.text, message.channel, teamDomain, externalUrl);
-            return [this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, externalUrl)];
+        } else {
+            // Not an edit.
+            matrixEvents.push(parsedMessage, ...parsedFiles);
         }
 
-        return [parsedMessage, ...parsedFiles];
+        return matrixEvents;
     }
 
     private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
