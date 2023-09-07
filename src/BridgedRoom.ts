@@ -1074,11 +1074,13 @@ export class BridgedRoom {
             this.main.config.homeserver.max_upload_size,
             this.main
         );
-        const parsedMessage = await parser.parse(message);
-        if (!parsedMessage) {
+        const parsedMessages = await parser.parse(message);
+        if (parsedMessages.length === 0) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
             return;
         }
+
+        const parsedMessage = parsedMessages[0];
 
         // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
         // Edits still work correctly in threads nonetheless.

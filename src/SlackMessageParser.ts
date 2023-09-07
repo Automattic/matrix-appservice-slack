@@ -67,14 +67,14 @@ export class SlackMessageParser {
         });
     }
 
-    async parse(message: ISlackMessageEvent): Promise<MessageEventContent | null> {
+    async parse(message: ISlackMessageEvent): Promise<MessageEventContent[]> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
-            return null;
+            return [];
         }
 
         if (subtype === "me_message") {
-            return this.makeEventContent(message.text || "", null, "m.emote");
+            return [this.makeEventContent(message.text || "", null, "m.emote")];
         }
 
         const parsedFiles: MessageEventContent[] = [];
@@ -100,7 +100,7 @@ export class SlackMessageParser {
         }
 
         if (text === "") {
-            return null;
+            return [];
         }
 
         const externalUrl = await this.getExternalUrl(message);
@@ -116,14 +116,14 @@ export class SlackMessageParser {
             // If the event we're editing was not found, we consider this to be a new message.
             if (!previousEvent) {
                 log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
-                return parsedMessage;
+                return [parsedMessage];
             }
 
             const parsedPreviousMessage = await this.doParse(message.previous_message.text, message.channel, teamDomain, externalUrl);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, externalUrl);
+            return [this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, externalUrl)];
         }
 
-        return parsedMessage;
+        return [parsedMessage];
     }
 
     private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
