@@ -46,6 +46,7 @@ export class SlackMessageParser {
         private readonly roomStore: SlackRoomStore,
         private readonly ghostStore: SlackGhostStore,
         private readonly bridgeMatrixBot: AppServiceBot,
+        private readonly botSlackClient: WebClient,
         private readonly slackClientFactory: SlackClientFactory,
         private readonly maxUploadSize: number | undefined,
         // Main is only for getTeamDomainForMessage()
@@ -62,10 +63,7 @@ export class SlackMessageParser {
         });
     }
 
-    async parse(
-        message: ISlackMessageEvent,
-        slackClient: WebClient,
-    ): Promise<TextualMessageEventContent | null> {
+    async parse(message: ISlackMessageEvent): Promise<TextualMessageEventContent | null> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
             return null;
@@ -106,7 +104,7 @@ export class SlackMessageParser {
 
         const externalUrl = await this.getExternalUrl(message);
         const teamDomain = await this.main.getTeamDomainForMessage(message);
-        const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain, externalUrl);
+        const parsedMessage = await this.doParse(text, message.channel, teamDomain, externalUrl);
 
         if (subtype === "message_changed" && message.previous_message?.text) {
             let previousEvent: EventEntry | null = null;
@@ -120,7 +118,7 @@ export class SlackMessageParser {
                 return parsedMessage;
             }
 
-            const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain, externalUrl);
+            const parsedPreviousMessage = await this.doParse(message.previous_message.text, message.channel, teamDomain, externalUrl);
             return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, externalUrl);
         }
 
@@ -211,12 +209,11 @@ export class SlackMessageParser {
 
     private async doParse(
         body: string,
-        slackClient: WebClient,
         channelId: string,
         teamDomain: string | undefined,
         externalUrl: string | null,
     ): Promise<TextualMessageEventContent> {
-        body = await this.replaceChannelIdsWithNames(body, slackClient);
+        body = await this.replaceChannelIdsWithNames(body);
         if (teamDomain) {
             body = await this.replaceUserIdsWithNames(body, teamDomain, channelId);
         }
@@ -313,7 +310,7 @@ export class SlackMessageParser {
         return null;
     }
 
-    private async replaceChannelIdsWithNames(text: string, slackClient: WebClient): Promise<string> {
+    private async replaceChannelIdsWithNames(text: string): Promise<string> {
         let match: RegExpExecArray | null = null;
         while ((match = CHANNEL_ID_REGEX.exec(text)) !== null) {
             // foreach channelId, pull out the ID
@@ -337,7 +334,7 @@ export class SlackMessageParser {
 
             // If we can't match the room then we just put the Slack name
             if (room === undefined) {
-                const name = await this.getSlackRoomNameFromID(id, slackClient);
+                const name = await this.getSlackRoomNameFromID(id, this.botSlackClient);
                 text = text.slice(0, match.index) + `#${name}` + text.slice(match.index + match[0].length);
             }
         }

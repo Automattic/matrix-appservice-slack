@@ -997,7 +997,7 @@ export class BridgedRoom {
         );
     }
 
-    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient: WebClient) {
+    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, botSlackClient: WebClient) {
         if (!this.SlackTeamId) {
             throw Error("SlackTeamId must be set");
         }
@@ -1062,11 +1062,12 @@ export class BridgedRoom {
             this.main.rooms,
             this.main.ghostStore,
             this.main.bridgeMatrixBot,
+            botSlackClient,
             this.main.clientFactory,
             this.main.config.homeserver.max_upload_size,
             this.main
         );
-        const parsedMessage = await parser.parse(message, slackClient);
+        const parsedMessage = await parser.parse(message);
         if (!parsedMessage) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
             return;
