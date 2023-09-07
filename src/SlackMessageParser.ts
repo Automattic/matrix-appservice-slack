@@ -136,7 +136,24 @@ export class SlackMessageParser {
             return null;
         }
 
-        const slackClient = this.getSlackClientForFileHandling();
+        const slackClient = await this.getSlackClientForFileHandling();
+
+        let parseAsLink: boolean = false;
+        if (!slackClient || !slackClient.token) {
+            log.warn("We have no client (or token) that can handle this file, parsing as link.");
+            parseAsLink = true;
+        } else if (this.maxUploadSize && file.size > this.maxUploadSize) {
+            log.warn(`File size too large (${file.size / 1024}KiB > ${this.maxUploadSize / 1024} KB).`);
+            parseAsLink = true;
+        }
+
+        if (parseAsLink) {
+            const url = file.public_url_shared ? file.permalink_public : file.url_private;
+            return this.makeEventContent(
+                `${url} (${file.name})`,
+                `<a href="${url}">${file.name}</a>`,
+            );
+        }
 
         return null;
     }
