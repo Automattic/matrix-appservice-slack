@@ -19,6 +19,7 @@ import * as emoji from "node-emoji";
 import MarkdownIt from "markdown-it";
 import {SlackClientFactory} from "./SlackClientFactory";
 import {SlackChannelType} from "./BridgedRoom";
+import axios from "axios";
 
 const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
 
@@ -138,7 +139,7 @@ export class SlackMessageParser {
 
         const slackClient = await this.getSlackClientForFileHandling();
 
-        let parseAsLink: boolean = false;
+        let parseAsLink = false;
         if (!slackClient || !slackClient.token) {
             log.warn("We have no client (or token) that can handle this file, parsing as link.");
             parseAsLink = true;
@@ -155,7 +156,46 @@ export class SlackMessageParser {
             );
         }
 
+        if (file.mode === "snippet" && slackClient) {
+            return await this.parseSnippet(file, slackClient);
+        }
+
         return null;
+    }
+
+    private async parseSnippet(file: ISlackFile, slackClient: WebClient): Promise<IMatrixEventContent | null> {
+        if (!file.url_private) {
+            return null;
+        }
+
+        let content = "";
+        try {
+            const response = await axios.get<string>(file.url_private, {
+                headers: {
+                    Authorization: `Bearer ${slackClient.token}`,
+                }
+            });
+            if (response.status !== 200) {
+                throw Error(`${response.status}`);
+            }
+            content = response.data;
+        } catch (error) {
+            log.error("Failed to download snippet", error);
+        }
+
+        if (!content || content.trim() === "") {
+            return null;
+        }
+
+        const body = "```" + `\n${content}\n` + "```";
+        let formattedBody = "<pre><code>";
+        if (file.filetype) {
+            formattedBody = `<pre><code class="language-${file.filetype}'">`;
+        }
+        formattedBody += substitutions.htmlEscape(content);
+        formattedBody += "</code></pre>";
+
+        return this.makeEventContent(body, formattedBody);
     }
 
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
