@@ -30,7 +30,7 @@ import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
 
-type SlackChannelTypes = "mpim"|"im"|"channel"|"group"|"unknown";
+export type SlackChannelType = "mpim" | "im" | "channel" | "group" | "unknown";
 
 interface IBridgedRoomOpts {
     matrix_room_id: string;
@@ -39,7 +39,7 @@ interface IBridgedRoomOpts {
     slack_channel_id?: string;
     slack_webhook_uri?: string;
     slack_team_id?: string;
-    slack_type: SlackChannelTypes;
+    slack_type: SlackChannelType;
     is_private?: boolean;
     puppet_owner?: string;
 }
@@ -121,7 +121,7 @@ export class BridgedRoom {
         return this.isPrivate;
     }
 
-    public get SlackType(): SlackChannelTypes {
+    public get SlackType(): SlackChannelType {
         return this.slackType;
     }
 
@@ -139,7 +139,7 @@ export class BridgedRoom {
             slack_webhook_uri: entry.remote.webhook_uri,
             puppet_owner: entry.remote.puppet_owner,
             is_private: entry.remote.slack_private,
-            slack_type: entry.remote.slack_type as SlackChannelTypes,
+            slack_type: entry.remote.slack_type as SlackChannelType,
         }, team, botClient);
     }
 
@@ -149,7 +149,7 @@ export class BridgedRoom {
     private slackChannelId?: string;
     private slackWebhookUri?: string;
     private slackTeamId?: string;
-    private slackType: SlackChannelTypes;
+    private slackType: SlackChannelType;
     private isPrivate?: boolean;
     private puppetOwner?: string;
 
@@ -1063,6 +1063,7 @@ export class BridgedRoom {
             this.main.ghostStore,
             this.main.bridgeMatrixBot,
             botSlackClient,
+            this.SlackType,
             this.main.clientFactory,
             this.main.config.homeserver.max_upload_size,
             this.main

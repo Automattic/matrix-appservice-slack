@@ -18,6 +18,7 @@ import {Main} from "./Main";
 import * as emoji from "node-emoji";
 import MarkdownIt from "markdown-it";
 import {SlackClientFactory} from "./SlackClientFactory";
+import {SlackChannelType} from "./BridgedRoom";
 
 const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
 
@@ -47,6 +48,7 @@ export class SlackMessageParser {
         private readonly ghostStore: SlackGhostStore,
         private readonly bridgeMatrixBot: AppServiceBot,
         private readonly botSlackClient: WebClient,
+        private readonly slackChannelType: SlackChannelType,
         private readonly slackClientFactory: SlackClientFactory,
         private readonly maxUploadSize: number | undefined,
         // Main is only for getTeamDomainForMessage()
@@ -126,6 +128,11 @@ export class SlackMessageParser {
     }
 
     private async parseFile(file: ISlackFile): Promise<IMatrixEventContent | null> {
+        if (!file.url_private) {
+            log.warn(`Slack file ${file.id} lacks a url_private, not handling file.`);
+            return null;
+        }
+
         return null;
     }
 
@@ -301,7 +308,7 @@ export class SlackMessageParser {
         return externalUrl;
     }
 
-    private async getClientForPrivateChannel(teamId: string, roomId: string): Promise<WebClient | null> {
+    private async getClientForFileUpload(teamId: string, roomId: string): Promise<WebClient | null> {
         // This only works for private rooms
         const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(roomId));
 
