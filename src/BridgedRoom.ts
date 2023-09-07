@@ -150,7 +150,7 @@ export class BridgedRoom {
     private slackWebhookUri?: string;
     private slackTeamId?: string;
     private slackType: SlackChannelType;
-    private isPrivate?: boolean;
+    private isPrivate: boolean;
     private puppetOwner?: string;
 
     // last activity time in epoch seconds
@@ -247,7 +247,7 @@ export class BridgedRoom {
                 name: this.slackChannelName!,
                 slack_team_id: this.slackTeamId!,
                 slack_type: this.slackType!,
-                slack_private: this.isPrivate!,
+                slack_private: this.isPrivate,
                 webhook_uri: this.slackWebhookUri!,
                 puppet_owner: this.puppetOwner!,
             },
@@ -1004,7 +1004,7 @@ export class BridgedRoom {
         if (!this.SlackChannelId) {
             throw Error("SlackChannelId must be set");
         }
-        if (!this.isPrivate) {
+        if (this.isPrivate === undefined) {
             throw Error("isPrivate must be set");
         }
 
