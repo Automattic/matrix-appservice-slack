@@ -103,9 +103,8 @@ export class SlackMessageParser {
             return [...parsedFiles];
         }
 
-        const externalUrl = await this.getExternalUrl(message);
         const teamDomain = await this.main.getTeamDomainForMessage(message);
-        const parsedMessage = await this.doParse(text, message.channel, teamDomain, externalUrl);
+        const parsedMessage = await this.doParse(text, message.channel, teamDomain);
         const matrixEvents: MessageEventContent[] = [];
 
         if (subtype === "message_changed" && message.previous_message?.text) {
@@ -115,21 +114,20 @@ export class SlackMessageParser {
                 previousEvent = await this.datastore.getEventBySlackId(message.channel, message.previous_message.ts);
             }
 
-            // If the event we're editing was not found, we consider this to be a new message.
             if (!previousEvent) {
+                // If the event we're editing was not found, we consider this to be a new message.
+                matrixEvents.push(parsedMessage);
                 log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
-                matrixEvents.push(parsedMessage);
             } else {
-                const parsedPreviousMessage = await this.doParse(message.previous_message.text, message.channel, teamDomain, externalUrl);
-                matrixEvents.push(parsedMessage);
-                return [this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent, externalUrl)];
+                const parsedPreviousMessage = await this.doParse(message.previous_message.text, message.channel, teamDomain);
+                matrixEvents.push(this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent));
             }
         } else {
             // Not an edit.
             matrixEvents.push(parsedMessage, ...parsedFiles);
         }
 
-        return matrixEvents;
+        return this.injectExternalUrl(message, matrixEvents);
     }
 
     private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
@@ -284,8 +282,7 @@ export class SlackMessageParser {
     private async doParse(
         body: string,
         channelId: string,
-        teamDomain: string | undefined,
-        externalUrl: string | null,
+        teamDomain: string | undefined
     ): Promise<TextualMessageEventContent> {
         body = await this.replaceChannelIdsWithNames(body);
         if (teamDomain) {
@@ -315,14 +312,13 @@ export class SlackMessageParser {
             formattedBody = "";
         }
 
-        return this.makeEventContent(body, formattedBody, externalUrl);
+        return this.makeEventContent(body, formattedBody);
     }
 
     private parseEdit(
         parsedMessage: TextualMessageEventContent,
         parsedPreviousMessage: TextualMessageEventContent,
-        previousEvent: EventEntry,
-        externalUrl: string | null,
+        previousEvent: EventEntry
     ) {
         const edits  = substitutions.makeDiff(parsedPreviousMessage.body, parsedMessage.body);
         const prev   = substitutions.htmlEscape(edits.prev);
@@ -342,9 +338,9 @@ export class SlackMessageParser {
         const newFormattedBody = parsedMessage.formatted_body ?? "";
 
         return {
-            ...this.makeEventContent(body, formattedBody, externalUrl),
+            ...this.makeEventContent(body, formattedBody),
             "m.new_content": {
-                ...this.makeEventContent(newBody, newFormattedBody, externalUrl),
+                ...this.makeEventContent(newBody, newFormattedBody),
             },
             "m.relates_to": {
                 rel_type: "m.replace",
@@ -353,14 +349,14 @@ export class SlackMessageParser {
         };
     }
 
-    private async getExternalUrl(message: ISlackMessageEvent): Promise<string | null> {
+    private async injectExternalUrl(message: ISlackMessageEvent, events: MessageEventContent[]): Promise<MessageEventContent[]> {
         if (!message.team_id) {
-            return null;
+            return events;
         }
 
         const team = await this.datastore.getTeam(message.team_id);
         if (!team || !team.domain) {
-            return null;
+            return events;
         }
 
         let externalUrl = `https://${team.domain}.slack.com/archives/${message.channel}/p${message.ts.replace(".", "")}`;
@@ -368,7 +364,16 @@ export class SlackMessageParser {
             externalUrl = `${externalUrl}?thread_ts=${message.thread_ts.replace(".", "")}`;
         }
 
-        return externalUrl;
+        return events.map(event => {
+            if (event["m.new_content"]) {
+                // It's an edit.
+                // Set the external_url on the new content.
+                event["m.new_content"].external_url = externalUrl;
+            } else {
+                event.external_url = externalUrl;
+            }
+            return event;
+        });
     }
 
     private async getSlackClientForFileHandling(): Promise<WebClient | null> {
@@ -465,7 +470,6 @@ export class SlackMessageParser {
     private makeEventContent(
         body: string,
         formattedBody?: string | null,
-        externalUrl?: string | null,
         msgType?: "m.text" | "m.emote",
     ): TextualMessageEventContent {
         if (!msgType) {
@@ -480,10 +484,6 @@ export class SlackMessageParser {
         if (formattedBody && formattedBody !== "") {
             content.format = "org.matrix.custom.html";
             content.formatted_body = formattedBody;
-        }
-
-        if (externalUrl) {
-            content.external_url = externalUrl;
         }
 
         return content;
