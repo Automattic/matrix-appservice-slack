@@ -1074,24 +1074,24 @@ export class BridgedRoom {
             this.main.config.homeserver.max_upload_size,
             this.main
         );
-        const parsedMessages = await parser.parse(message);
-        if (parsedMessages.length === 0) {
+        const matrixEvents = await parser.parse(message);
+        if (matrixEvents.length === 0) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
             return;
         }
 
-        const parsedMessage = parsedMessages[0];
+        const matrixEvent = matrixEvents[0];
 
         // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
         // Edits still work correctly in threads nonetheless.
-        const isEdit = parsedMessage["m.new_content"];
+        const isEdit = matrixEvent["m.new_content"];
         if (lastEventInThread && !isEdit) {
             return await ghost.sendInThread(
-                this.MatrixRoomId, parsedMessage, this.SlackChannelId, eventTS, lastEventInThread,
+                this.MatrixRoomId, matrixEvent, this.SlackChannelId, eventTS, lastEventInThread,
             );
         }
 
-        const record = parsedMessage as unknown as Record<string, string>;
+        const record = matrixEvent as unknown as Record<string, string>;
         return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackChannelId, eventTS);
     }
 
