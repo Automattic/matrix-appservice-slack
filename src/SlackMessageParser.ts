@@ -36,7 +36,6 @@ export class SlackMessageParser {
         undefined, // Messages with no subtype
         "me_message",
         "bot_message",
-        "file_comment",
         "message_changed",
     ];
 
@@ -103,10 +102,6 @@ export class SlackMessageParser {
 
         if (text === "") {
             return null;
-        }
-
-        if (subtype === "file_comment" && message.file) {
-            text = this.replaceFileLinks(text, message.file);
         }
 
         const externalUrl = await this.getExternalUrl(message);
@@ -460,19 +455,6 @@ export class SlackMessageParser {
             log.error("Caught error handling conversations.info:" + err);
         }
         return channel;
-    }
-
-    private replaceFileLinks(text: string, file: ISlackFile): string {
-        if (!file.permalink_public || !file.url_private || !file.permalink) {
-            return text;
-        }
-
-        const pubSecret = file.permalink_public.match(/https?:\/\/slack-files.com\/[^-]*-[^-]*-(.*)/);
-        if (!pubSecret || pubSecret.length === 0) {
-            return text;
-        }
-
-        return text.replace(file.permalink, `${file.url_private}?pub_secret=${pubSecret[1]}`);
     }
 
     private makeEventContent(body: string, formattedBody?: string | null, externalUrl?: string | null, msgType?: string): IMatrixEventContent {
