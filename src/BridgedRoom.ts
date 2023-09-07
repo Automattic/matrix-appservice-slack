@@ -1038,17 +1038,6 @@ export class BridgedRoom {
             return this.onSlackUserJoin(message.user, message.inviter);
         }
 
-        for (const file of message.files || []) {
-            try {
-                if (!this.SlackTeamId) {
-                    throw Error("SlackTeamId must be set");
-                }
-                await this.handleSlackMessageFile(file, eventTS, this.SlackTeamId, ghost);
-            } catch (ex) {
-                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
-            }
-        }
-
         let lastEventInThread: IMatrixReplyEvent | null = null;
         if (message.thread_ts) {
             lastEventInThread = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
