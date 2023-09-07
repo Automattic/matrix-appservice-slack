@@ -152,7 +152,7 @@ export class SlackMessageParser {
         }
 
         if (file.mode === "snippet" && slackClient) {
-            return await this.parseSnippet(file, slackClient);
+            return this.parseSnippet(file, slackClient);
         }
 
         return null;
