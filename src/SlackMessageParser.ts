@@ -82,9 +82,13 @@ export class SlackMessageParser {
             };
         }
 
-        const parsedFiles = await Promise.all(
-            (message.files || []).map(async (file) => this.parseFile(file))
-        );
+        const parsedFiles: IMatrixEventContent[] = [];
+        for (const file of message.files || []) {
+            const parsedFile = await this.parseFile(file);
+            if (parsedFile) {
+                parsedFiles.push(parsedFile);
+            }
+        }
 
         let text = "";
 
