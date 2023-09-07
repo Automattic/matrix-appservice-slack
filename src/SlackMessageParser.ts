@@ -49,6 +49,7 @@ export class SlackMessageParser {
         private readonly bridgeMatrixBot: AppServiceBot,
         private readonly botSlackClient: WebClient,
         private readonly slackChannelType: SlackChannelType,
+        private readonly isPrivateChannel: boolean,
         private readonly slackClientFactory: SlackClientFactory,
         private readonly maxUploadSize: number | undefined,
         // Main is only for getTeamDomainForMessage()
@@ -308,10 +309,15 @@ export class SlackMessageParser {
         return externalUrl;
     }
 
-    private async getClientForFileUpload(teamId: string, roomId: string): Promise<WebClient | null> {
-        // This only works for private rooms
-        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(roomId));
+    private async getSlackClientForFileHandling(teamId: string, roomId: string): Promise<WebClient | null> {
+        const isPrivateChannel = this.isPrivateChannel && ["channel", "group"].includes(this.slackChannelType);
+        if (!isPrivateChannel) {
+            return this.botSlackClient;
+        }
 
+        // This is a private channel, so bots cannot see images.
+        // Attempt to retrieve a user's client.
+        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(roomId));
         for (const matrixId of members) {
             const client = await this.slackClientFactory.getClientForUser(teamId, matrixId);
             if (client) {

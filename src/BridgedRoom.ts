@@ -1004,6 +1004,9 @@ export class BridgedRoom {
         if (!this.SlackChannelId) {
             throw Error("SlackChannelId must be set");
         }
+        if (!this.isPrivate) {
+            throw Error("isPrivate must be set");
+        }
 
         const eventTS = message.event_ts || message.ts;
 
@@ -1064,6 +1067,7 @@ export class BridgedRoom {
             this.main.bridgeMatrixBot,
             botSlackClient,
             this.SlackType,
+            this.isPrivate,
             this.main.clientFactory,
             this.main.config.homeserver.max_upload_size,
             this.main
