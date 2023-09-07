@@ -76,6 +76,10 @@ export class SlackMessageParser {
             };
         }
 
+        const parsedFiles = await Promise.all(
+            (message.files || []).map(async (file) => this.parseFile(file))
+        );
+
         let text = "";
 
         if (message.blocks) {
@@ -123,6 +127,10 @@ export class SlackMessageParser {
         }
 
         return parsedMessage;
+    }
+
+    private async parseFile(file: ISlackFile): Promise<IMatrixEventContent | null> {
+        return null;
     }
 
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
