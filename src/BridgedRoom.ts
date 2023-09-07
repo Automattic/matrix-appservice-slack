@@ -1069,22 +1069,17 @@ export class BridgedRoom {
             return;
         }
 
-        const promises: Promise<{ event_id: string }>[] = [];
         for (const matrixEvent of matrixEvents) {
             // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
             // Edits still work correctly in threads nonetheless.
             const isEdit = matrixEvent["m.new_content"];
             if (lastEventInThread && !isEdit) {
-                promises.push(
-                    ghost.sendInThread(this.MatrixRoomId, matrixEvent, this.SlackChannelId, eventTS, lastEventInThread)
-                );
+                await ghost.sendInThread(this.MatrixRoomId, matrixEvent, this.SlackChannelId, eventTS, lastEventInThread);
             }
 
             const record = matrixEvent as unknown as Record<string, string>;
-            promises.push(ghost.sendMessage(this.MatrixRoomId, record, this.SlackChannelId, eventTS));
+            await ghost.sendMessage(this.MatrixRoomId, record, this.SlackChannelId, eventTS);
         }
-
-        return Promise.all(promises);
     }
 
     public async onMatrixTyping(currentlyTyping: string[]) {
