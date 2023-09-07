@@ -5,9 +5,8 @@ import {
     ISlackEventMessageBlock
 } from "./BaseSlackHandler";
 import * as Slackdown from "slackdown";
-import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
+import {TextualMessageEventContent, MessageEventContent} from "matrix-bot-sdk";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
-import {IMatrixEventContent} from "./SlackGhost";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
 import {AppServiceBot, Intent, Logger} from "matrix-appservice-bridge";
@@ -68,7 +67,7 @@ export class SlackMessageParser {
         });
     }
 
-    async parse(message: ISlackMessageEvent): Promise<TextualMessageEventContent | null> {
+    async parse(message: ISlackMessageEvent): Promise<MessageEventContent | null> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
             return null;
@@ -78,7 +77,7 @@ export class SlackMessageParser {
             return this.makeEventContent(message.text || "", null, "m.emote");
         }
 
-        const parsedFiles: IMatrixEventContent[] = [];
+        const parsedFiles: MessageEventContent[] = [];
         for (const file of message.files || []) {
             const parsedFile = await this.parseFile(file);
             if (parsedFile) {
@@ -127,7 +126,7 @@ export class SlackMessageParser {
         return parsedMessage;
     }
 
-    private async parseFile(file: ISlackFile): Promise<IMatrixEventContent | null> {
+    private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
         if (!file.url_private) {
             log.warn(`Slack file ${file.id} lacks a url_private, not handling file.`);
             return null;
@@ -159,7 +158,7 @@ export class SlackMessageParser {
         return null;
     }
 
-    private async parseSnippet(file: ISlackFile, slackClient: WebClient): Promise<IMatrixEventContent | null> {
+    private async parseSnippet(file: ISlackFile, slackClient: WebClient): Promise<TextualMessageEventContent | null> {
         if (!file.url_private) {
             return null;
         }
@@ -410,7 +409,7 @@ export class SlackMessageParser {
 
             // If we can't match the room then we just put the Slack name
             if (room === undefined) {
-                const name = await this.getSlackRoomNameFromID(id, this.botSlackClient);
+                const name = await this.getSlackChannelName(id, this.botSlackClient);
                 text = text.slice(0, match.index) + `#${name}` + text.slice(match.index + match[0].length);
             }
         }
@@ -443,7 +442,7 @@ export class SlackMessageParser {
         return text;
     }
 
-    private async getSlackRoomNameFromID(channel: string, client: WebClient): Promise<string> {
+    private async getSlackChannelName(channel: string, client: WebClient): Promise<string> {
         try {
             const response = (await client.conversations.info({ channel })) as ConversationsInfoResponse;
             if (response && response.channel && response.channel.name) {
@@ -457,12 +456,17 @@ export class SlackMessageParser {
         return channel;
     }
 
-    private makeEventContent(body: string, formattedBody?: string | null, externalUrl?: string | null, msgType?: string): IMatrixEventContent {
+    private makeEventContent(
+        body: string,
+        formattedBody?: string | null,
+        externalUrl?: string | null,
+        msgType?: "m.text" | "m.emote",
+    ): TextualMessageEventContent {
         if (!msgType) {
             msgType = "m.text";
         }
 
-        const content: IMatrixEventContent = {
+        const content: TextualMessageEventContent = {
             msgtype: msgType,
             body,
         };
@@ -473,8 +477,6 @@ export class SlackMessageParser {
         }
 
         if (externalUrl) {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
             content.external_url = externalUrl;
         }
 
