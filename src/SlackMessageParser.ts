@@ -76,10 +76,7 @@ export class SlackMessageParser {
         }
 
         if (subtype === "me_message") {
-            return {
-                msgtype: "m.emote",
-                body: message.text || "",
-            };
+            return this.makeEventContent(message.text || "", null, "m.emote");
         }
 
         const parsedFiles: IMatrixEventContent[] = [];
@@ -478,9 +475,13 @@ export class SlackMessageParser {
         return text.replace(file.permalink, `${file.url_private}?pub_secret=${pubSecret[1]}`);
     }
 
-    private makeEventContent(body: string, formattedBody?: string | null, externalUrl?: string | null): IMatrixEventContent {
+    private makeEventContent(body: string, formattedBody?: string | null, externalUrl?: string | null, msgType?: string): IMatrixEventContent {
+        if (!msgType) {
+            msgType = "m.text";
+        }
+
         const content: IMatrixEventContent = {
-            msgtype: "m.text",
+            msgtype: msgType,
             body,
         };
 

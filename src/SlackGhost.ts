@@ -29,7 +29,7 @@ const log = new Logger("SlackGhost");
 const USER_CACHE_TIMEOUT = 10 * 60 * 1000;  // 10 minutes
 
 export interface IMatrixEventContent {
-    msgtype: "m.text",
+    msgtype: string,
     body: string;
     format?: string;
     formatted_body?: string;
