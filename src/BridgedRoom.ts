@@ -1063,6 +1063,7 @@ export class BridgedRoom {
             this.main.ghostStore,
             this.main.bridgeMatrixBot,
             this.main.clientFactory,
+            this.main.config.homeserver.max_upload_size,
             this.main
         );
         const parsedMessage = await parser.parse(message, slackClient);

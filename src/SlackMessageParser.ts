@@ -47,6 +47,7 @@ export class SlackMessageParser {
         private readonly ghostStore: SlackGhostStore,
         private readonly bridgeMatrixBot: AppServiceBot,
         private readonly slackClientFactory: SlackClientFactory,
+        private readonly maxUploadSize: number | undefined,
         // Main is only for getTeamDomainForMessage()
         // TODO: Refactor getTeamDomainForMessage() into something that can be injected.
         //       Also, there are currently two implementations of getTeamDomainForMessage() in the codebase.
