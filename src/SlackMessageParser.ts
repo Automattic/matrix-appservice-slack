@@ -136,6 +136,8 @@ export class SlackMessageParser {
             return null;
         }
 
+        const slackClient = this.getSlackClientForFileHandling();
+
         return null;
     }
 
@@ -311,7 +313,7 @@ export class SlackMessageParser {
         return externalUrl;
     }
 
-    private async getSlackClientForFileHandling(teamId: string, roomId: string): Promise<WebClient | null> {
+    private async getSlackClientForFileHandling(): Promise<WebClient | null> {
         const isPrivateChannel = this.isPrivateChannel && ["channel", "group"].includes(this.slackChannelType);
         if (!isPrivateChannel) {
             return this.botSlackClient;
@@ -319,13 +321,15 @@ export class SlackMessageParser {
 
         // This is a private channel, so bots cannot see images.
         // Attempt to retrieve a user's client.
-        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(roomId));
+
+        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(this.matrixRoomId));
         for (const matrixId of members) {
-            const client = await this.slackClientFactory.getClientForUser(teamId, matrixId);
+            const client = await this.slackClientFactory.getClientForUser(this.slackTeamId, matrixId);
             if (client) {
                 return client;
             }
         }
+
         return null;
     }
 
