@@ -347,7 +347,7 @@ export class SlackGhost {
         slackChannelId: string,
         slackEventTs: string,
         lastEventInThread: IMatrixReplyEvent,
-    ): Promise<void> {
+    ): Promise<{ event_id: string }> {
         const msg: Record<string, unknown> = {
             "m.relates_to": {
                 "rel_type": "m.thread",
@@ -363,7 +363,7 @@ export class SlackGhost {
             ...content,
         };
 
-        await this.sendMessage(roomId, msg, slackChannelId, slackEventTs);
+        return this.sendMessage(roomId, msg, slackChannelId, slackEventTs);
     }
 
     public async sendMessage(
