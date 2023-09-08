@@ -17,7 +17,7 @@ import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
 import {AppServiceBot, Intent, Logger} from "matrix-appservice-bridge";
-import {ConversationsInfoResponse} from "./SlackResponses";
+import {ConversationsInfoResponse, FileInfoResponse} from "./SlackResponses";
 import {Datastore, EventEntry} from "./datastore/Models";
 import {SlackGhostStore} from "./SlackGhostStore";
 import {Main} from "./Main";
@@ -165,6 +165,13 @@ export class SlackMessageParser {
 
         if (file.mode === "snippet" && slackClient) {
             return this.parseSnippet(file, slackClient);
+        }
+
+        // Sometimes Slack sends us a message too soon, and the file is missing its mimetype.
+        if (slackClient && !file.mimetype) {
+            log.info(`Slack file ${file.id} is missing mimetype, fetching fresh info.`);
+            file = ((await slackClient.files.info({file: file.id})) as FileInfoResponse).file;
+            // If it's *still* missing a mimetype, we'll treat it as a file later.
         }
 
         return null;
