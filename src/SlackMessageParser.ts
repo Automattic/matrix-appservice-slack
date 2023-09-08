@@ -461,7 +461,8 @@ export class SlackMessageParser {
     }
 
     private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
-        if (!file.url_private) {
+        const filePrivateUrl = file.url_private;
+        if (!filePrivateUrl) {
             log.warn(`Slack file ${file.id} lacks a url_private, not handling file.`);
             return null;
         }
@@ -486,6 +487,11 @@ export class SlackMessageParser {
             );
         }
 
+        if (!slackClient || !slackClient.token) {
+            // Can't proceed without a Slack client.
+            return null;
+        }
+
         if (file.mode === "snippet" && slackClient) {
             return this.parseSnippet(file, slackClient);
         }
@@ -494,33 +500,67 @@ export class SlackMessageParser {
         if (slackClient && !file.mimetype) {
             log.info(`Slack file ${file.id} is missing mimetype, fetching fresh info.`);
             file = ((await slackClient.files.info({file: file.id})) as FileInfoResponse).file;
-            // If it's *still* missing a mimetype, we'll treat it as a file later.
+            // If it's still missing a mimetype, we'll treat it as a file, below.
         }
 
-        return null;
+        return slackFileToMatrixMessage(file, slackClient.token);
     }
 }
 
-export const slackFileToMatrixMessage = (file: ISlackFile, url: string, thumbnailUrl?: string): FileMessageEventContent => {
-    if (file.mimetype) {
-        if (file.mimetype.startsWith("image/")) {
-            return slackFileToMatrixImage(file, url, thumbnailUrl);
-        } else if (file.mimetype.startsWith("video/")) {
-            return slackFileToMatrixVideo(file, url, thumbnailUrl);
-        } else if (file.mimetype.startsWith("audio/")) {
-            return slackFileToMatrixAudio(file, url);
+export const slackFileToMatrixMessage = (file: ISlackFile, slackAuthToken: string): FileMessageEventContent | null => {
+    const filePrivateUrl = file.url_private;
+    if (!filePrivateUrl) {
+        // Can't do anything without a url_private.
+        return null;
+    }
+
+    let mimetype = "";
+    for (const type of ["image", "video", "audio"]) {
+        if (file.mimetype.startsWith(`${type}/`)) {
+            mimetype = type;
+            break;
         }
     }
 
-    return  {
-        body: file.title,
-        info: {
-            mimetype: file.mimetype,
-            size: file.size,
-        },
-        msgtype: "m.file",
-        url,
-    } as FileMessageEventContent;
+    const appendTokenToUrl = (url: string | undefined): string | undefined => {
+        if (!url) {
+            return undefined;
+        }
+        const separator = url.includes("?") ? "&" : "?";
+        return `${url}${separator}token=${slackAuthToken}`;
+    };
+
+    const urlWithToken = appendTokenToUrl(filePrivateUrl);
+    if (!urlWithToken) {
+        // Not really possible since filePrivateUrl is guaranteed to be set (we checked above),
+        // but typescript doesn't seem to be smart enough to figure that out on its own.
+        return null;
+    }
+
+    let event: FileMessageEventContent;
+    switch (mimetype) {
+        case "image":
+            event = slackFileToMatrixImage(file, urlWithToken, appendTokenToUrl(file.thumb_360));
+            break;
+        case "video":
+            event = slackFileToMatrixVideo(file, urlWithToken, appendTokenToUrl(file.thumb_video));
+            break;
+        case "audio":
+            event = slackFileToMatrixAudio(file, urlWithToken);
+            break;
+        default:
+            event = {
+                body: file.title,
+                info: {
+                    mimetype: file.mimetype,
+                    size: file.size,
+                },
+                msgtype: "m.file",
+                url: urlWithToken,
+            } as FileMessageEventContent;
+    }
+
+    return event;
 };
 
 const slackFileToMatrixImage = (file: ISlackFile, url: string, thumbnailUrl?: string): ImageMessageEventContent => {
