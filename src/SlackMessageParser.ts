@@ -137,81 +137,6 @@ export class SlackMessageParser {
         return this.injectExternalUrl(message, matrixEvents);
     }
 
-    private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
-        if (!file.url_private) {
-            log.warn(`Slack file ${file.id} lacks a url_private, not handling file.`);
-            return null;
-        }
-
-        const slackClient = await this.getSlackClientForFileHandling();
-
-        let parseAsLink = false;
-        if (!slackClient || !slackClient.token) {
-            log.warn("We have no client (or token) that can handle this file, parsing as link.");
-            parseAsLink = true;
-        } else if (this.maxUploadSize && file.size > this.maxUploadSize) {
-            log.warn(`File size too large (${file.size / 1024}KiB > ${this.maxUploadSize / 1024} KB).`);
-            parseAsLink = true;
-        }
-
-        if (parseAsLink) {
-            const url = file.public_url_shared ? file.permalink_public : file.url_private;
-            return this.makeTextualEventContent(
-                "m.text",
-                `${url} (${file.name})`,
-                `<a href="${url}">${file.name}</a>`,
-            );
-        }
-
-        if (file.mode === "snippet" && slackClient) {
-            return this.parseSnippet(file, slackClient);
-        }
-
-        // Sometimes Slack sends us a message too soon, and the file is missing its mimetype.
-        if (slackClient && !file.mimetype) {
-            log.info(`Slack file ${file.id} is missing mimetype, fetching fresh info.`);
-            file = ((await slackClient.files.info({file: file.id})) as FileInfoResponse).file;
-            // If it's *still* missing a mimetype, we'll treat it as a file later.
-        }
-
-        return null;
-    }
-
-    private async parseSnippet(file: ISlackFile, slackClient: WebClient): Promise<TextualMessageEventContent | null> {
-        if (!file.url_private) {
-            return null;
-        }
-
-        let content = "";
-        try {
-            const response = await axios.get<string>(file.url_private, {
-                headers: {
-                    Authorization: `Bearer ${slackClient.token}`,
-                }
-            });
-            if (response.status !== 200) {
-                throw Error(`${response.status}`);
-            }
-            content = response.data;
-        } catch (error) {
-            log.error("Failed to download snippet", error);
-        }
-
-        if (!content || content.trim() === "") {
-            return null;
-        }
-
-        const body = "```" + `\n${content}\n` + "```";
-        let formattedBody = "<pre><code>";
-        if (file.filetype) {
-            formattedBody = `<pre><code class="language-${file.filetype}'">`;
-        }
-        formattedBody += substitutions.htmlEscape(content);
-        formattedBody += "</code></pre>";
-
-        return this.makeTextualEventContent("m.text", body, formattedBody);
-    }
-
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
         const {blocks, pretext, text, fallback, title, title_link, author_name} = attachment;
         let content = "";
@@ -391,26 +316,6 @@ export class SlackMessageParser {
         });
     }
 
-    private async getSlackClientForFileHandling(): Promise<WebClient | null> {
-        const isPrivateChannel = this.isPrivateChannel && ["channel", "group"].includes(this.slackChannelType);
-        if (!isPrivateChannel) {
-            return this.botSlackClient;
-        }
-
-        // This is a private channel, so bots cannot see images.
-        // Attempt to retrieve a user's client.
-
-        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(this.matrixRoomId));
-        for (const matrixId of members) {
-            const client = await this.slackClientFactory.getClientForUser(this.slackTeamId, matrixId);
-            if (client) {
-                return client;
-            }
-        }
-
-        return null;
-    }
-
     private async replaceChannelIdsWithNames(text: string): Promise<string> {
         let match: RegExpExecArray | null = null;
         while ((match = CHANNEL_ID_REGEX.exec(text)) !== null) {
@@ -498,6 +403,101 @@ export class SlackMessageParser {
         }
 
         return content;
+    }
+
+    private async getSlackClientForFileHandling(): Promise<WebClient | null> {
+        const isPrivateChannel = this.isPrivateChannel && ["channel", "group"].includes(this.slackChannelType);
+        if (!isPrivateChannel) {
+            return this.botSlackClient;
+        }
+
+        // This is a private channel, so bots cannot see images.
+        // Attempt to retrieve a user's client.
+
+        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(this.matrixRoomId));
+        for (const matrixId of members) {
+            const client = await this.slackClientFactory.getClientForUser(this.slackTeamId, matrixId);
+            if (client) {
+                return client;
+            }
+        }
+
+        return null;
+    }
+
+    private async parseSnippet(file: ISlackFile, slackClient: WebClient): Promise<TextualMessageEventContent | null> {
+        if (!file.url_private) {
+            return null;
+        }
+
+        let content = "";
+        try {
+            const response = await axios.get<string>(file.url_private, {
+                headers: {
+                    Authorization: `Bearer ${slackClient.token}`,
+                }
+            });
+            if (response.status !== 200) {
+                throw Error(`${response.status}`);
+            }
+            content = response.data;
+        } catch (error) {
+            log.error("Failed to download snippet", error);
+        }
+
+        if (!content || content.trim() === "") {
+            return null;
+        }
+
+        const body = "```" + `\n${content}\n` + "```";
+        let formattedBody = "<pre><code>";
+        if (file.filetype) {
+            formattedBody = `<pre><code class="language-${file.filetype}'">`;
+        }
+        formattedBody += substitutions.htmlEscape(content);
+        formattedBody += "</code></pre>";
+
+        return this.makeTextualEventContent("m.text", body, formattedBody);
+    }
+
+    private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
+        if (!file.url_private) {
+            log.warn(`Slack file ${file.id} lacks a url_private, not handling file.`);
+            return null;
+        }
+
+        const slackClient = await this.getSlackClientForFileHandling();
+
+        let parseAsLink = false;
+        if (!slackClient || !slackClient.token) {
+            log.warn("We have no client (or token) that can handle this file, parsing as link.");
+            parseAsLink = true;
+        } else if (this.maxUploadSize && file.size > this.maxUploadSize) {
+            log.warn(`File size too large (${file.size / 1024}KiB > ${this.maxUploadSize / 1024} KB).`);
+            parseAsLink = true;
+        }
+
+        if (parseAsLink) {
+            const url = file.public_url_shared ? file.permalink_public : file.url_private;
+            return this.makeTextualEventContent(
+                "m.text",
+                `${url} (${file.name})`,
+                `<a href="${url}">${file.name}</a>`,
+            );
+        }
+
+        if (file.mode === "snippet" && slackClient) {
+            return this.parseSnippet(file, slackClient);
+        }
+
+        // Sometimes Slack sends us a message too soon, and the file is missing its mimetype.
+        if (slackClient && !file.mimetype) {
+            log.info(`Slack file ${file.id} is missing mimetype, fetching fresh info.`);
+            file = ((await slackClient.files.info({file: file.id})) as FileInfoResponse).file;
+            // If it's *still* missing a mimetype, we'll treat it as a file later.
+        }
+
+        return null;
     }
 }
 
