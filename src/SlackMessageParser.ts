@@ -525,7 +525,7 @@ const slackFileToMatrixImage = (file: ISlackFile, url: string, thumbnailUrl?: st
         },
         msgtype: "m.image",
         url,
-    } as any;
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
     if (file.original_w) {
         message.info.w = file.original_w;
@@ -568,7 +568,7 @@ const slackFileToMatrixVideo = (file: ISlackFile, url: string, thumbnailUrl?: st
         },
         msgtype: "m.video",
         url,
-    } as any;
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
     if (file.original_w) {
         message.info.w = file.original_w;
