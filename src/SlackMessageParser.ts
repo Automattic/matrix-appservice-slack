@@ -5,7 +5,7 @@ import {
     ISlackEventMessageBlock
 } from "./BaseSlackHandler";
 import * as Slackdown from "slackdown";
-import {TextualMessageEventContent, MessageEventContent, MessageType} from "matrix-bot-sdk";
+import {TextualMessageEventContent, MessageEventContent} from "matrix-bot-sdk";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
@@ -28,7 +28,7 @@ const USER_ID_REGEX = /<@(\w+)\|?\w*?>/g;
 const log = new Logger("SlackMessageParser");
 
 /**
- * Parses the content of a Slack message into an `m.message` Matrix event.
+ * Parses the content of a Slack message into zero, one, or more `m.message` Matrix events.
  */
 export class SlackMessageParser {
     private readonly handledSubtypes = [
