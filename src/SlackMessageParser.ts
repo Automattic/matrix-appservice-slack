@@ -626,7 +626,7 @@ const slackFileToMatrixVideo = (file: ISlackFile, url: string, thumbnailUrl?: st
     }
 
     if (thumbnailUrl) {
-        message.thumbnail_url = thumbnailUrl;
+        message.info.thumbnail_url = thumbnailUrl;
         // Slack doesn't tell us the thumbnail size for videos.
     }
 

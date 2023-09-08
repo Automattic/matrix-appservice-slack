@@ -25,7 +25,7 @@ import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
-import {MatrixClient} from "matrix-bot-sdk";
+import {FileMessageEventContent, MatrixClient, MessageEventContent} from "matrix-bot-sdk";
 import {slackFileToMatrixMessage, SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
@@ -970,12 +970,13 @@ export class BridgedRoom {
             // If it's *still* missing a mimetype, we'll treat it as a file later.
         }
 
+        /*
         // We also need to upload the thumbnail
         let thumbnailPromise: Promise<string> = Promise.resolve("");
         // Slack ain't a believer in consistency.
         const thumbUri = file.thumb_video || file.thumb_360;
         if (thumbUri && file.filetype) {
-            thumbnailPromise = ghost.uploadContentFromURI(
+            thumbnailPromise = ghost.uploadContentFromUrlWithToken(
                 {
                     mimetype: file.mimetype,
                     title: `${file.name}_thumb.${file.filetype}`,
@@ -985,7 +986,7 @@ export class BridgedRoom {
             );
         }
 
-        const fileContentUri = await ghost.uploadContentFromURI(
+        const fileContentUri = await ghost.uploadContentFromUrlWithToken(
             // authToken is verified above.
             file, filePrivateUrl, authToken!);
         const thumbnailContentUri = await thumbnailPromise;
@@ -997,6 +998,7 @@ export class BridgedRoom {
             channelId,
             slackEventId,
         );
+        */
     }
 
     private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, botSlackClient: WebClient) {
@@ -1071,15 +1073,45 @@ export class BridgedRoom {
             return;
         }
 
-        for (const matrixEvent of matrixEvents) {
-            // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
-            // Edits still work correctly in threads nonetheless.
-            const isEdit = matrixEvent["m.new_content"];
-            if (lastEventInThread && !isEdit) {
-                await ghost.sendInThread(this.MatrixRoomId, matrixEvent, this.SlackChannelId, eventTS, lastEventInThread);
+        // Upload files and replace URLs in matrix events.
+        const eventsToPublish: MessageEventContent[] = [];
+        for (const event of matrixEvents) {
+            if (!["m.image", "m.video", "m.audio", "m.file"].includes(event.msgtype)) {
+                // Not a file, nothing to upload.
+                eventsToPublish.push(event);
+                continue;
             }
 
-            const record = matrixEvent as unknown as Record<string, string>;
+            // Upload file and thumbnail, if present.
+            const fileEvent = event as FileMessageEventContent;
+            fileEvent.url = await ghost.uploadContentFromUrlWithToken({
+                mimetype: fileEvent.info?.mimetype ?? "",
+                title: fileEvent.body,
+            }, fileEvent.url);
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            if (fileEvent.thumbnail_url) {
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                fileEvent.thumbnail_url = await ghost.uploadContentFromUrlWithToken({
+                    mimetype: fileEvent.info?.mimetype ?? "",
+                    title: `thumb-${fileEvent.body}`,
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-ignore
+                }, fileEvent.thumbnail_url);
+            }
+            eventsToPublish.push(fileEvent);
+        }
+
+        for (const event of eventsToPublish) {
+            // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
+            // Edits still work correctly in threads nonetheless.
+            const isEdit = event["m.new_content"];
+            if (lastEventInThread && !isEdit) {
+                await ghost.sendInThread(this.MatrixRoomId, event, this.SlackChannelId, eventTS, lastEventInThread);
+            }
+
+            const record = event as unknown as Record<string, string>;
             await ghost.sendMessage(this.MatrixRoomId, record, this.SlackChannelId, eventTS);
         }
     }

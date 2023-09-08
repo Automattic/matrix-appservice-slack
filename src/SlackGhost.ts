@@ -447,15 +447,10 @@ export class SlackGhost {
         }
     }
 
-    public async uploadContentFromURI(file: {mimetype: string, title: string}, uri: string, slackAccessToken: string)
+    public async uploadContentFromUrlWithToken(file: {mimetype: string, title: string}, url: string)
         : Promise<string> {
         try {
-            const response = await axios.get<Buffer>(uri, {
-                headers: {
-                    Authorization: `Bearer ${slackAccessToken}`,
-                },
-                responseType: "arraybuffer",
-            });
+            const response = await axios.get<Buffer>(url, {responseType: "arraybuffer"});
             if (response.status !== 200) {
                 throw Error('Failed to get file');
             }
