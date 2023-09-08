@@ -5,7 +5,14 @@ import {
     ISlackEventMessageBlock
 } from "./BaseSlackHandler";
 import * as Slackdown from "slackdown";
-import {TextualMessageEventContent, MessageEventContent} from "matrix-bot-sdk";
+import {
+    TextualMessageEventContent,
+    MessageEventContent,
+    AudioMessageEventContent,
+    VideoMessageEventContent,
+    ImageMessageEventContent,
+    FileMessageEventContent,
+} from "matrix-bot-sdk";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
@@ -486,3 +493,95 @@ export class SlackMessageParser {
         return content;
     }
 }
+
+export const slackFileToMatrixMessage = (file: ISlackFile, url: string, thumbnailUrl?: string): FileMessageEventContent => {
+    if (file.mimetype) {
+        if (file.mimetype.startsWith("image/")) {
+            return slackFileToMatrixImage(file, url, thumbnailUrl);
+        } else if (file.mimetype.startsWith("video/")) {
+            return slackFileToMatrixVideo(file, url, thumbnailUrl);
+        } else if (file.mimetype.startsWith("audio/")) {
+            return slackFileToMatrixAudio(file, url);
+        }
+    }
+
+    return  {
+        body: file.title,
+        info: {
+            mimetype: file.mimetype,
+            size: file.size,
+        },
+        msgtype: "m.file",
+        url,
+    } as FileMessageEventContent;
+};
+
+const slackFileToMatrixImage = (file: ISlackFile, url: string, thumbnailUrl?: string): ImageMessageEventContent => {
+    const message = {
+        body: file.title,
+        info: {
+            mimetype: file.mimetype,
+            size: file.size,
+        },
+        msgtype: "m.image",
+        url,
+    } as any;
+
+    if (file.original_w) {
+        message.info.w = file.original_w;
+    }
+
+    if (file.original_h) {
+        message.info.h = file.original_h;
+    }
+
+    if (thumbnailUrl) {
+        message.thumbnail_url = thumbnailUrl;
+        message.thumbnail_info = {};
+        if (file.thumb_360_w) {
+            message.thumbnail_info.w = file.thumb_360_w;
+        }
+        if (file.thumb_360_h) {
+            message.thumbnail_info.h = file.thumb_360_h;
+        }
+    }
+
+    return message as ImageMessageEventContent;
+};
+
+const slackFileToMatrixAudio = (file: ISlackFile, url: string): AudioMessageEventContent => ({
+    body: file.title,
+    info: {
+        mimetype: file.mimetype,
+        size: file.size,
+    },
+    msgtype: "m.audio",
+    url,
+} as AudioMessageEventContent);
+
+const slackFileToMatrixVideo = (file: ISlackFile, url: string, thumbnailUrl?: string): VideoMessageEventContent => {
+    const message = {
+        body: file.title,
+        info: {
+            mimetype: file.mimetype,
+            size: file.size,
+        },
+        msgtype: "m.video",
+        url,
+    } as any;
+
+    if (file.original_w) {
+        message.info.w = file.original_w;
+    }
+
+    if (file.original_h) {
+        message.info.h = file.original_h;
+    }
+
+    if (thumbnailUrl) {
+        message.thumbnail_url = thumbnailUrl;
+        // Slack doesn't tell us the thumbnail size for videos.
+    }
+
+    return message as VideoMessageEventContent;
+};

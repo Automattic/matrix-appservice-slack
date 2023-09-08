@@ -26,7 +26,7 @@ import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
 import {MatrixClient} from "matrix-bot-sdk";
-import {SlackMessageParser} from "./SlackMessageParser";
+import {slackFileToMatrixMessage, SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
 
@@ -989,9 +989,11 @@ export class BridgedRoom {
             // authToken is verified above.
             file, filePrivateUrl, authToken!);
         const thumbnailContentUri = await thumbnailPromise;
+        const matrixEvent = slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri);
+        const record = matrixEvent as unknown as Record<string, string>;
         await ghost.sendMessage(
             this.matrixRoomId,
-            slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri),
+            record,
             channelId,
             slackEventId,
         );
@@ -1219,145 +1221,3 @@ export class BridgedRoom {
         }
     }
 }
-
-/**
- * Converts a slack image attachment to a matrix image event.
- *
- * @param {Object} file The slack image attachment file object.
- * @param {?integer} file.size size of the file in bytes.
- * @param {string} file.title alt-text for the file.
- * @param {string} file.mimetype mime-type of the file.
- * @param {?integer} file.original_w width of the file if an image, in pixels.
- * @param {?integer} file.original_h height of the file if an image, in pixels.
- * @param {?string} file.thumb_360 URL of a 360 pixel wide thumbnail of the
- * file, if an image.
- * @param {?integer} file.thumb_360_w width of the thumbnail of the 360 pixel
- * wide thumbnail of the file, if an image.
- * @param {?integer} file.thumb_360_h height of the thumbnail of the 36 pixel
- * wide thumbnail of the file, if an image.
- * @param {string} url The matrix file mxc.
- * @param {?string} thumbnail_url The matrix thumbnail mxc.
- * @return {Object} Matrix event content, as per https://matrix.org/docs/spec/#m-image
- */
-const slackImageToMatrixImage = (file, url: string, thumbnailUrl?: string) => {
-    const message = {
-        body: file.title,
-        info: {
-            mimetype: file.mimetype,
-            size: file.size,
-        },
-        msgtype: "m.image",
-        url,
-        // TODO: Define some matrix types
-    } as any;
-
-    if (file.original_w) {
-        message.info.w = file.original_w;
-    }
-
-    if (file.original_h) {
-        message.info.h = file.original_h;
-    }
-
-    if (thumbnailUrl) {
-        message.thumbnail_url = thumbnailUrl;
-        message.thumbnail_info = {};
-        if (file.thumb_360_w) {
-            message.thumbnail_info.w = file.thumb_360_w;
-        }
-        if (file.thumb_360_h) {
-            message.thumbnail_info.h = file.thumb_360_h;
-        }
-    }
-    return message;
-};
-
-/**
- * Converts a slack video attachment to a matrix video event.
- *
- * @param file The slack video attachment file object.
- * @param file.size size of the file in bytes.
- * @param file.title alt-text for the file.
- * @param file.mimetype mime-type of the file.
- * @param file.original_w width of the file if an image, in pixels.
- * @param file.original_h height of the file if an image, in pixels.
- * @param url The matrix file mxc.
- * @param thumbnail_url The matrix thumbnail mxc.
- * @return Matrix event content, as per https://matrix.org/docs/spec/client_server/r0.4.0.html#m-video
- */
-const slackImageToMatrixVideo = (file, url: string, thumbnailUrl?: string) => {
-    const message = {
-        body: file.title,
-        info: {
-            mimetype: file.mimetype,
-            size: file.size,
-        },
-        msgtype: "m.video",
-        url,
-        // TODO: Define some matrix types
-    } as any;
-
-    if (file.original_w) {
-        message.info.w = file.original_w;
-    }
-
-    if (file.original_h) {
-        message.info.h = file.original_h;
-    }
-
-    if (thumbnailUrl) {
-        message.thumbnail_url = thumbnailUrl;
-        // Slack don't tell us the thumbnail size for videos. Boo
-    }
-
-    return message;
-};
-
-/**
- * Converts a slack audio attachment to a matrix audio event.
- *
- * @param {Object} file The slack audio attachment file object.
- * @param {?integer} file.size size of the file in bytes.
- * @param {string} file.title alt-text for the file.
- * @param {string} file.mimetype mime-type of the file.
- * @param {string} url The matrix file mxc.
- * @return {Object} Matrix event content, as per https://matrix.org/docs/spec/client_server/r0.4.0.html#m-audio
- */
-const slackImageToMatrixAudio = (file, url: string) => ({
-    body: file.title,
-    info: {
-        mimetype: file.mimetype,
-        size: file.size,
-    },
-    msgtype: "m.audio",
-    url,
-});
-/**
- * Converts a slack file upload to a matrix file upload event.
- *
- * @param file The slack file object.
- * @param url The matrix file mxc.
- * @param thumbnail_url The matrix thumbnail mxc.
- * @return Matrix event content, as per https://matrix.org/docs/spec/#m-file
- */
-const slackFileToMatrixMessage = (file, url: string, thumbnailUrl?: string) => {
-    if (file.mimetype) {
-        if (file.mimetype.startsWith("image/")) {
-            return slackImageToMatrixImage(file, url, thumbnailUrl);
-        } else if (file.mimetype.startsWith("video/")) {
-            return slackImageToMatrixVideo(file, url, thumbnailUrl);
-        } else if (file.mimetype.startsWith("audio/")) {
-            return slackImageToMatrixAudio(file, url);
-        }
-    }
-
-    return  {
-        body: file.title,
-        info: {
-            mimetype: file.mimetype,
-            size: file.size,
-        },
-        msgtype: "m.file",
-        url,
-    };
-};
