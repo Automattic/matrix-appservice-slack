@@ -65,21 +65,20 @@ export class MatrixUsernameStore {
         const client = axios.create();
 
         const logError = (r: AxiosResponse | undefined) => {
-            log.warn(`Failed to retrieve Matrix username for ${slackUserId}:`, r?.status, r?.statusText, r?.headers, r?.data);
+            log.debug(`Failed to retrieve Matrix username for ${slackUserId}:`, r?.status, r?.statusText, r?.headers, r?.data);
         };
 
-        let response;
+        let response: AxiosResponse;
         try {
             response = await client.get(`${this.url.toString()}&slack_id=${slackUserId}`);
             if (response.data.error || !response.data.matrix) {
                 logError(response);
                 return null;
             }
+            return response.data.matrix;
         } catch (error) {
             logError((error as AxiosError).response);
             return null;
         }
-
-        return response.data.matrix;
     }
 }
