@@ -25,8 +25,8 @@ import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
-import {FileMessageEventContent, MatrixClient, MessageEventContent} from "matrix-bot-sdk";
-import {slackFileToMatrixMessage, SlackMessageParser} from "./SlackMessageParser";
+import {FileWithThumbnailInfo, FileMessageEventContent, MatrixClient, MessageEventContent} from "matrix-bot-sdk";
+import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
 
@@ -1082,27 +1082,10 @@ export class BridgedRoom {
                 continue;
             }
 
-            // Upload file and thumbnail, if present.
-            const fileEvent = event as FileMessageEventContent;
-            const uploadedUrl = await ghost.uploadContentFromUrlWithToken({
-                mimetype: fileEvent.info?.mimetype ?? "",
-                title: fileEvent.body,
-            }, fileEvent.url);
-
-            if (!uploadedUrl || uploadedUrl.includes("files.slack.com")) {
-                // We failed to upload the url, drop the event.
-                continue;
+            const uploadedEvent = await this.uploadFileAndThumbnail(event as FileMessageEventContent, ghost);
+            if (uploadedEvent) {
+                eventsToPublish.push(uploadedEvent);
             }
-
-            fileEvent.url = uploadedUrl;
-
-            if (fileEvent.info?.thumbnail_url) {
-                fileEvent.info.thumbnail_url = await ghost.uploadContentFromUrlWithToken({
-                    mimetype: fileEvent.info.mimetype ?? "",
-                    title: `thumb-${fileEvent.body}`,
-                }, fileEvent.info.thumbnail_url) ?? undefined;
-            }
-            eventsToPublish.push(fileEvent);
         }
 
         for (const event of eventsToPublish) {
@@ -1116,6 +1099,36 @@ export class BridgedRoom {
             const record = event as unknown as Record<string, string>;
             await ghost.sendMessage(this.MatrixRoomId, record, this.SlackChannelId, eventTS);
         }
+    }
+
+    private async uploadFileAndThumbnail(event: FileMessageEventContent, ghost: SlackGhost): Promise<FileMessageEventContent | null> {
+        const upload = async (url: string, mimetype: string | undefined, title: string): Promise<string | null> => {
+            mimetype = mimetype ?? "";
+            const matrixUrl = await ghost.uploadContentFromUrlWithToken({mimetype, title}, url);
+            if (!matrixUrl || matrixUrl.includes("files.slack.com")) {
+                // We failed to upload the file.
+                return null;
+            }
+            return matrixUrl;
+        };
+
+        const mainUrl = await upload(event.url, event.info?.mimetype, event.body);
+        if (!mainUrl) {
+            return null;
+        }
+        event.url = mainUrl;
+
+        if (!event.info?.thumbnail_url) {
+            return event;
+        }
+
+        const thumbnailMimetype = event.info.thumbnail_info?.mimetype ?? event.info.mimetype;
+        const thumbnailUrl = await upload(event.info.thumbnail_url, thumbnailMimetype, `thumb-${event.body}`);
+        if (thumbnailUrl) {
+            event.info.thumbnail_url = thumbnailUrl;
+        }
+
+        return event;
     }
 
     public async onMatrixTyping(currentlyTyping: string[]) {
