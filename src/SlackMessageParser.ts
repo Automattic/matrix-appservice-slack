@@ -5,18 +5,27 @@ import {
     ISlackEventMessageBlock
 } from "./BaseSlackHandler";
 import * as Slackdown from "slackdown";
-import {TextualMessageEventContent} from "matrix-bot-sdk/lib/models/events/MessageEvent";
+import {
+    TextualMessageEventContent,
+    MessageEventContent,
+    AudioMessageEventContent,
+    VideoMessageEventContent,
+    ImageMessageEventContent,
+    FileMessageEventContent,
+} from "matrix-bot-sdk";
 import substitutions, {getFallbackForMissingEmoji} from "./substitutions";
-import {IMatrixEventContent} from "./SlackGhost";
 import {WebClient} from "@slack/web-api";
 import {SlackRoomStore} from "./SlackRoomStore";
-import {Intent, Logger} from "matrix-appservice-bridge";
-import {ConversationsInfoResponse} from "./SlackResponses";
+import {AppServiceBot, Intent, Logger} from "matrix-appservice-bridge";
+import {ConversationsInfoResponse, FileInfoResponse} from "./SlackResponses";
 import {Datastore, EventEntry} from "./datastore/Models";
 import {SlackGhostStore} from "./SlackGhostStore";
 import {Main} from "./Main";
 import * as emoji from "node-emoji";
 import MarkdownIt from "markdown-it";
+import {SlackClientFactory} from "./SlackClientFactory";
+import {SlackChannelType} from "./BridgedRoom";
+import axios from "axios";
 
 const CHANNEL_ID_REGEX = /<#(\w+)\|?\w*?>/g;
 
@@ -26,14 +35,13 @@ const USER_ID_REGEX = /<@(\w+)\|?\w*?>/g;
 const log = new Logger("SlackMessageParser");
 
 /**
- * Parses the content of a Slack message into an `m.message` Matrix event.
+ * Parses the content of a Slack message into zero, one, or more `m.message` Matrix events.
  */
 export class SlackMessageParser {
     private readonly handledSubtypes = [
         undefined, // Messages with no subtype
         "me_message",
         "bot_message",
-        "file_comment",
         "message_changed",
     ];
 
@@ -44,6 +52,14 @@ export class SlackMessageParser {
         private readonly datastore: Datastore,
         private readonly roomStore: SlackRoomStore,
         private readonly ghostStore: SlackGhostStore,
+        private readonly bridgeMatrixBot: AppServiceBot,
+        private readonly matrixRoomId: string,
+        private readonly botSlackClient: WebClient,
+        private readonly slackTeamId: string,
+        private readonly slackChannelType: SlackChannelType,
+        private readonly isPrivateChannel: boolean,
+        private readonly slackClientFactory: SlackClientFactory,
+        private readonly maxUploadSize: number | undefined,
         // Main is only for getTeamDomainForMessage()
         // TODO: Refactor getTeamDomainForMessage() into something that can be injected.
         //       Also, there are currently two implementations of getTeamDomainForMessage() in the codebase.
@@ -58,34 +74,32 @@ export class SlackMessageParser {
         });
     }
 
-    async parse(
-        message: ISlackMessageEvent,
-        slackClient: WebClient,
-    ): Promise<TextualMessageEventContent | null> {
+    async parse(message: ISlackMessageEvent): Promise<MessageEventContent[]> {
         const subtype = message.subtype;
         if (!this.handledSubtypes.includes(subtype)) {
-            return null;
+            return [];
         }
 
         if (subtype === "me_message") {
-            return {
-                msgtype: "m.emote",
-                body: message.text || "",
-            };
+            return [this.makeTextualEventContent("m.emote", message.text || "")];
+        }
+
+        const parsedFiles: MessageEventContent[] = [];
+        for (const file of message.files || []) {
+            const parsedFile = await this.parseFile(file);
+            if (parsedFile) {
+                parsedFiles.push(parsedFile);
+            }
         }
 
         let text = "";
 
-        if (message.blocks) {
-            for (const block of message.blocks) {
-                text += this.parseBlock(block);
-            }
+        for (const block of message.blocks || []) {
+            text += this.parseBlock(block);
         }
 
-        if (message.attachments) {
-            for (const attachment of message.attachments) {
-                text += this.parseAttachment(attachment);
-            }
+        for (const attachment of message.attachments || []) {
+            text += this.parseAttachment(attachment);
         }
 
         if (text.trim() === "") {
@@ -93,33 +107,34 @@ export class SlackMessageParser {
         }
 
         if (text === "") {
-            return null;
-        }
-
-        if (subtype === "file_comment" && message.file) {
-            text = this.replaceFileLinks(text, message.file);
+            return [...parsedFiles];
         }
 
         const teamDomain = await this.main.getTeamDomainForMessage(message);
-        const parsedMessage = await this.doParse(text, slackClient, message.channel, teamDomain);
+        const parsedMessage = await this.doParse(text, message.channel, teamDomain);
+        const matrixEvents: MessageEventContent[] = [];
 
         if (subtype === "message_changed" && message.previous_message?.text) {
+            // It's an edit.
             let previousEvent: EventEntry | null = null;
             if (message.previous_message?.ts) {
                 previousEvent = await this.datastore.getEventBySlackId(message.channel, message.previous_message.ts);
             }
 
-            // If the event we're editing was not found, we consider this to be a new message.
             if (!previousEvent) {
+                // If the event we're editing was not found, we consider this to be a new message.
+                matrixEvents.push(parsedMessage);
                 log.warn(`Previous event not found when editing message. message.ts: ${message.ts}`);
-                return parsedMessage;
+            } else {
+                const parsedPreviousMessage = await this.doParse(message.previous_message.text, message.channel, teamDomain);
+                matrixEvents.push(this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent));
             }
-
-            const parsedPreviousMessage = await this.doParse(message.previous_message.text, slackClient, message.channel, teamDomain);
-            return this.parseEdit(parsedMessage, parsedPreviousMessage, previousEvent);
+        } else {
+            // Not an edit.
+            matrixEvents.push(parsedMessage, ...parsedFiles);
         }
 
-        return parsedMessage;
+        return this.injectExternalUrl(message, matrixEvents);
     }
 
     private parseAttachment(attachment: ISlackEventMessageAttachment): string {
@@ -206,11 +221,10 @@ export class SlackMessageParser {
 
     private async doParse(
         body: string,
-        slackClient: WebClient,
         channelId: string,
-        teamDomain: string | undefined,
+        teamDomain: string | undefined
     ): Promise<TextualMessageEventContent> {
-        body = await this.replaceChannelIdsWithNames(body, slackClient);
+        body = await this.replaceChannelIdsWithNames(body);
         if (teamDomain) {
             body = await this.replaceUserIdsWithNames(body, teamDomain, channelId);
         }
@@ -238,7 +252,7 @@ export class SlackMessageParser {
             formattedBody = "";
         }
 
-        return this.makeEventContent(body, formattedBody);
+        return this.makeTextualEventContent("m.text", body, formattedBody);
     }
 
     private parseEdit(
@@ -264,9 +278,9 @@ export class SlackMessageParser {
         const newFormattedBody = parsedMessage.formatted_body ?? "";
 
         return {
-            ...this.makeEventContent(body, formattedBody),
+            ...this.makeTextualEventContent("m.text", body, formattedBody),
             "m.new_content": {
-                ...this.makeEventContent(newBody, newFormattedBody),
+                ...this.makeTextualEventContent("m.text", newBody, newFormattedBody),
             },
             "m.relates_to": {
                 rel_type: "m.replace",
@@ -275,7 +289,34 @@ export class SlackMessageParser {
         };
     }
 
-    private async replaceChannelIdsWithNames(text: string, slackClient: WebClient): Promise<string> {
+    private async injectExternalUrl(message: ISlackMessageEvent, events: MessageEventContent[]): Promise<MessageEventContent[]> {
+        if (!message.team_id) {
+            return events;
+        }
+
+        const team = await this.datastore.getTeam(message.team_id);
+        if (!team || !team.domain) {
+            return events;
+        }
+
+        let externalUrl = `https://${team.domain}.slack.com/archives/${message.channel}/p${message.ts.replace(".", "")}`;
+        if (message.thread_ts) {
+            externalUrl = `${externalUrl}?thread_ts=${message.thread_ts.replace(".", "")}`;
+        }
+
+        return events.map(event => {
+            if (event["m.new_content"]) {
+                // It's an edit.
+                // Set the external_url on the new content.
+                event["m.new_content"].external_url = externalUrl;
+            } else {
+                event.external_url = externalUrl;
+            }
+            return event;
+        });
+    }
+
+    private async replaceChannelIdsWithNames(text: string): Promise<string> {
         let match: RegExpExecArray | null = null;
         while ((match = CHANNEL_ID_REGEX.exec(text)) !== null) {
             // foreach channelId, pull out the ID
@@ -299,7 +340,7 @@ export class SlackMessageParser {
 
             // If we can't match the room then we just put the Slack name
             if (room === undefined) {
-                const name = await this.getSlackRoomNameFromID(id, slackClient);
+                const name = await this.getSlackChannelName(id, this.botSlackClient);
                 text = text.slice(0, match.index) + `#${name}` + text.slice(match.index + match[0].length);
             }
         }
@@ -332,7 +373,7 @@ export class SlackMessageParser {
         return text;
     }
 
-    private async getSlackRoomNameFromID(channel: string, client: WebClient): Promise<string> {
+    private async getSlackChannelName(channel: string, client: WebClient): Promise<string> {
         try {
             const response = (await client.conversations.info({ channel })) as ConversationsInfoResponse;
             if (response && response.channel && response.channel.name) {
@@ -346,22 +387,13 @@ export class SlackMessageParser {
         return channel;
     }
 
-    private replaceFileLinks(text: string, file: ISlackFile): string {
-        if (!file.permalink_public || !file.url_private || !file.permalink) {
-            return text;
-        }
-
-        const pubSecret = file.permalink_public.match(/https?:\/\/slack-files.com\/[^-]*-[^-]*-(.*)/);
-        if (!pubSecret || pubSecret.length === 0) {
-            return text;
-        }
-
-        return text.replace(file.permalink, `${file.url_private}?pub_secret=${pubSecret[1]}`);
-    }
-
-    private makeEventContent(body: string, formattedBody?: string | null): IMatrixEventContent {
-        const content: IMatrixEventContent = {
-            msgtype: "m.text",
+    private makeTextualEventContent(
+        messageType: "m.text" | "m.emote",
+        body: string,
+        formattedBody?: string | null,
+    ): TextualMessageEventContent {
+        const content: TextualMessageEventContent = {
+            msgtype: messageType,
             body,
         };
 
@@ -372,4 +404,231 @@ export class SlackMessageParser {
 
         return content;
     }
+
+    private async getSlackClientForFileHandling(): Promise<WebClient | null> {
+        const isPrivateChannel = this.isPrivateChannel && ["channel", "group"].includes(this.slackChannelType);
+        if (!isPrivateChannel) {
+            return this.botSlackClient;
+        }
+
+        // This is a private channel, so bots cannot see images.
+        // Attempt to retrieve a user's client.
+
+        const members = Object.keys(await this.bridgeMatrixBot.getJoinedMembers(this.matrixRoomId));
+        for (const matrixId of members) {
+            const client = await this.slackClientFactory.getClientForUser(this.slackTeamId, matrixId);
+            if (client) {
+                return client;
+            }
+        }
+
+        return null;
+    }
+
+    private async parseSnippet(file: ISlackFile, slackClient: WebClient): Promise<TextualMessageEventContent | null> {
+        if (!file.url_private) {
+            return null;
+        }
+
+        let content = "";
+        try {
+            const response = await axios.get<string>(file.url_private, {
+                headers: {
+                    Authorization: `Bearer ${slackClient.token}`,
+                }
+            });
+            if (response.status !== 200) {
+                throw Error(`${response.status}`);
+            }
+            content = response.data;
+        } catch (error) {
+            log.error("Failed to download snippet", error);
+        }
+
+        if (!content || content.trim() === "") {
+            return null;
+        }
+
+        const body = "```" + `\n${content}\n` + "```";
+        let formattedBody = "<pre><code>";
+        if (file.filetype) {
+            formattedBody = `<pre><code class="language-${file.filetype}'">`;
+        }
+        formattedBody += substitutions.htmlEscape(content);
+        formattedBody += "</code></pre>";
+
+        return this.makeTextualEventContent("m.text", body, formattedBody);
+    }
+
+    private async parseFile(file: ISlackFile): Promise<MessageEventContent | null> {
+        const filePrivateUrl = file.url_private;
+        if (!filePrivateUrl) {
+            log.warn(`Slack file ${file.id} lacks a url_private, not handling file.`);
+            return null;
+        }
+
+        const slackClient = await this.getSlackClientForFileHandling();
+
+        let parseAsLink = false;
+        if (!slackClient || !slackClient.token) {
+            log.warn("We have no client (or token) that can handle this file, parsing as link.");
+            parseAsLink = true;
+        } else if (this.maxUploadSize && file.size > this.maxUploadSize) {
+            log.warn(`File size too large (${file.size / 1024}KiB > ${this.maxUploadSize / 1024} KB).`);
+            parseAsLink = true;
+        }
+
+        if (parseAsLink) {
+            const url = file.public_url_shared ? file.permalink_public : file.url_private;
+            return this.makeTextualEventContent(
+                "m.text",
+                `${url} (${file.name})`,
+                `<a href="${url}">${file.name}</a>`,
+            );
+        }
+
+        if (!slackClient || !slackClient.token) {
+            // Can't proceed without a Slack client.
+            return null;
+        }
+
+        if (file.mode === "snippet" && slackClient) {
+            return this.parseSnippet(file, slackClient);
+        }
+
+        // Sometimes Slack sends us a message too soon, and the file is missing its mimetype.
+        if (slackClient && !file.mimetype) {
+            log.info(`Slack file ${file.id} is missing mimetype, fetching fresh info.`);
+            file = ((await slackClient.files.info({file: file.id})) as FileInfoResponse).file;
+            // If it's still missing a mimetype, we'll treat it as a file, below.
+        }
+
+        return slackFileToMatrixMessage(file, slackClient.token);
+    }
 }
+
+export const slackFileToMatrixMessage = (file: ISlackFile, slackAuthToken: string): FileMessageEventContent | null => {
+    const filePrivateUrl = file.url_private;
+    if (!filePrivateUrl) {
+        // Can't do anything without a url_private.
+        return null;
+    }
+
+    let mimetype = "";
+    for (const type of ["image", "video", "audio"]) {
+        if (file.mimetype.startsWith(`${type}/`)) {
+            mimetype = type;
+            break;
+        }
+    }
+
+    const appendTokenToUrl = (url: string | undefined): string | undefined => {
+        if (!url) {
+            return undefined;
+        }
+        const separator = url.includes("?") ? "&" : "?";
+        return `${url}${separator}token=${slackAuthToken}`;
+    };
+
+    const urlWithToken = appendTokenToUrl(filePrivateUrl);
+    if (!urlWithToken) {
+        // Not really possible since filePrivateUrl is guaranteed to be set (we checked above),
+        // but typescript doesn't seem to be smart enough to figure that out on its own.
+        return null;
+    }
+
+    let event: FileMessageEventContent;
+    switch (mimetype) {
+        case "image":
+            event = slackFileToMatrixImage(file, urlWithToken, appendTokenToUrl(file.thumb_360));
+            break;
+        case "video":
+            event = slackFileToMatrixVideo(file, urlWithToken, appendTokenToUrl(file.thumb_video));
+            break;
+        case "audio":
+            event = slackFileToMatrixAudio(file, urlWithToken);
+            break;
+        default:
+            event = {
+                body: file.title,
+                info: {
+                    mimetype: file.mimetype,
+                    size: file.size,
+                },
+                msgtype: "m.file",
+                url: urlWithToken,
+            } as FileMessageEventContent;
+    }
+
+    return event;
+};
+
+const slackFileToMatrixImage = (file: ISlackFile, url: string, thumbnailUrl?: string): ImageMessageEventContent => {
+    const message = {
+        body: file.title,
+        info: {
+            mimetype: file.mimetype,
+            size: file.size,
+        },
+        msgtype: "m.image",
+        url,
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    if (file.original_w) {
+        message.info.w = file.original_w;
+    }
+
+    if (file.original_h) {
+        message.info.h = file.original_h;
+    }
+
+    if (thumbnailUrl) {
+        message.info.thumbnail_url = thumbnailUrl;
+        message.info.thumbnail_info = {};
+        if (file.thumb_360_w) {
+            message.info.thumbnail_info.w = file.thumb_360_w;
+        }
+        if (file.thumb_360_h) {
+            message.info.thumbnail_info.h = file.thumb_360_h;
+        }
+    }
+
+    return message as ImageMessageEventContent;
+};
+
+const slackFileToMatrixAudio = (file: ISlackFile, url: string): AudioMessageEventContent => ({
+    body: file.title,
+    info: {
+        mimetype: file.mimetype,
+        size: file.size,
+    },
+    msgtype: "m.audio",
+    url,
+} as AudioMessageEventContent);
+
+const slackFileToMatrixVideo = (file: ISlackFile, url: string, thumbnailUrl?: string): VideoMessageEventContent => {
+    const message = {
+        body: file.title,
+        info: {
+            mimetype: file.mimetype,
+            size: file.size,
+        },
+        msgtype: "m.video",
+        url,
+    } as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    if (file.original_w) {
+        message.info.w = file.original_w;
+    }
+
+    if (file.original_h) {
+        message.info.h = file.original_h;
+    }
+
+    if (thumbnailUrl) {
+        message.info.thumbnail_url = thumbnailUrl;
+        // Slack doesn't tell us the thumbnail size for videos.
+    }
+
+    return message as VideoMessageEventContent;
+};

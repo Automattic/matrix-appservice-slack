@@ -20,17 +20,17 @@ import {IMatrixReplyEvent, SlackGhost} from "./SlackGhost";
 import { Main, METRIC_SENT_MESSAGES } from "./Main";
 import { default as substitutions, getFallbackForMissingEmoji, IMatrixToSlackResult } from "./substitutions";
 import * as emoji from "node-emoji";
-import {ISlackMessageEvent, ISlackEvent, ISlackFile, ISlackMessageDeletedEvent} from "./BaseSlackHandler";
+import {ISlackMessageEvent, ISlackEvent, ISlackMessageDeletedEvent} from "./BaseSlackHandler";
 import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
-    ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
+    ChatPostMessageResponse, ConversationsInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
-import {MatrixClient} from "matrix-bot-sdk";
+import {FileMessageEventContent, MatrixClient, MessageEventContent} from "matrix-bot-sdk";
 import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
 
-type SlackChannelTypes = "mpim"|"im"|"channel"|"group"|"unknown";
+export type SlackChannelType = "mpim" | "im" | "channel" | "group" | "unknown";
 
 interface IBridgedRoomOpts {
     matrix_room_id: string;
@@ -39,7 +39,7 @@ interface IBridgedRoomOpts {
     slack_channel_id?: string;
     slack_webhook_uri?: string;
     slack_team_id?: string;
-    slack_type: SlackChannelTypes;
+    slack_type: SlackChannelType;
     is_private?: boolean;
     puppet_owner?: string;
 }
@@ -121,7 +121,7 @@ export class BridgedRoom {
         return this.isPrivate;
     }
 
-    public get SlackType(): SlackChannelTypes {
+    public get SlackType(): SlackChannelType {
         return this.slackType;
     }
 
@@ -139,7 +139,7 @@ export class BridgedRoom {
             slack_webhook_uri: entry.remote.webhook_uri,
             puppet_owner: entry.remote.puppet_owner,
             is_private: entry.remote.slack_private,
-            slack_type: entry.remote.slack_type as SlackChannelTypes,
+            slack_type: entry.remote.slack_type as SlackChannelType,
         }, team, botClient);
     }
 
@@ -149,8 +149,8 @@ export class BridgedRoom {
     private slackChannelId?: string;
     private slackWebhookUri?: string;
     private slackTeamId?: string;
-    private slackType: SlackChannelTypes;
-    private isPrivate?: boolean;
+    private slackType: SlackChannelType;
+    private isPrivate: boolean;
     private puppetOwner?: string;
 
     // last activity time in epoch seconds
@@ -247,7 +247,7 @@ export class BridgedRoom {
                 name: this.slackChannelName!,
                 slack_team_id: this.slackTeamId!,
                 slack_type: this.slackType!,
-                slack_private: this.isPrivate!,
+                slack_private: this.isPrivate,
                 webhook_uri: this.slackWebhookUri!,
                 puppet_owner: this.puppetOwner!,
             },
@@ -881,133 +881,15 @@ export class BridgedRoom {
         this.dirty = true;
     }
 
-    private async handleSlackMessageFile(file: ISlackFile, slackEventId: string, ghost: SlackGhost) {
-        if (!this.SlackTeamId) {
-            throw Error("SlackTeamId must be set");
-        }
-
-        const maxUploadSize = this.main.config.homeserver.max_upload_size;
-        const filePrivateUrl = file.url_private;
-        if (!filePrivateUrl) {
-            log.info(`Slack file ${file.id} lacks a url_private, not handling file.`);
-            return;
-        }
-        const channelId = this.slackChannelId;
-        if (!channelId) {
-            // The ID is required.
-            return;
-        }
-
-        let sendAsLink = false;
-        let authToken = this.SlackClient?.token;
-        if (this.slackTeamId && (this.SlackType === "channel" || this.SlackType === "group") && this.isPrivate) {
-            // This is a private channel, so bots cannot see images.
-            const userClient = await this.main.getClientForPrivateChannel(this.slackTeamId, this.matrixRoomId);
-            authToken = userClient?.token;
-        }
-
-        if (!authToken) {
-            log.error("We have no client (or token) that can handle this file, sending as link");
-            sendAsLink = true;
-        } else if (maxUploadSize && file.size > maxUploadSize) {
-            log.warn(`File size too large (${file.size / 1024}KiB > ${maxUploadSize / 1024} KB)`);
-            sendAsLink = true;
-        }
-
-        if (sendAsLink) {
-            const link = file.public_url_shared ? file.permalink_public : file.url_private;
-            const messageContent = {
-                body: `${link} (${file.name})`,
-                format: "org.matrix.custom.html",
-                formatted_body: `<a href="${link}">${file.name}</a>`,
-                msgtype: "m.text",
-            };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
-            return;
-        }
-
-        if (file.mode === "snippet") {
-            let htmlString: string;
-            try {
-                const fileReq = await axios.get<string>(filePrivateUrl, {
-                    headers: {
-                        // Token is checked above.
-                        Authorization: `Bearer ${authToken}`,
-                    }
-                });
-                if (fileReq.status !== 200) {
-                    // We don't want to accidentally publish a error page.
-                    throw Error('Non-200 status returned for snippet');
-                }
-                htmlString = fileReq.data;
-            } catch (ex) {
-                log.error("Failed to download snippet", ex);
-                return;
-            }
-            let htmlCode = "";
-            // Because escaping 6 backticks is not good for readability.
-            const code = "```" + `\n${htmlString}\n` + "```";
-            if (file.filetype) {
-                htmlCode = `<pre><code class="language-${file.filetype}'">`;
-            } else {
-                htmlCode = "<pre><code>";
-            }
-            htmlCode += substitutions.htmlEscape(htmlString);
-            htmlCode += "</code></pre>";
-
-            const messageContent = {
-                body: code,
-                format: "org.matrix.custom.html",
-                formatted_body: htmlCode,
-                msgtype: "m.text",
-            };
-            await ghost.sendMessage(this.matrixRoomId, messageContent, this.SlackTeamId, channelId, slackEventId);
-            return;
-        }
-
-        // Sometimes Slack sends us a message too soon, and the file is missing it's mimetype.
-        if (!file.mimetype) {
-            log.info(`Slack file ${file.id} is missing mimetype, fetching fresh info`);
-            file = ((await this.SlackClient?.files.info({
-                file: file.id,
-            })) as FileInfoResponse).file;
-            // If it's *still* missing a mimetype, we'll treat it as a file later.
-        }
-
-        // We also need to upload the thumbnail
-        let thumbnailPromise: Promise<string> = Promise.resolve("");
-        // Slack ain't a believer in consistency.
-        const thumbUri = file.thumb_video || file.thumb_360;
-        if (thumbUri && file.filetype) {
-            thumbnailPromise = ghost.uploadContentFromURI(
-                {
-                    mimetype: file.mimetype,
-                    title: `${file.name}_thumb.${file.filetype}`,
-                },
-                thumbUri,
-                this.SlackClient!.token!,
-            );
-        }
-
-        const fileContentUri = await ghost.uploadContentFromURI(
-            // authToken is verified above.
-            file, filePrivateUrl, authToken!);
-        const thumbnailContentUri = await thumbnailPromise;
-        await ghost.sendMessage(
-            this.matrixRoomId,
-            slackFileToMatrixMessage(file, fileContentUri, thumbnailContentUri),
-            this.SlackTeamId,
-            channelId,
-            slackEventId,
-        );
-    }
-
-    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, slackClient: WebClient) {
+    private async handleSlackMessage(message: ISlackMessageEvent, ghost: SlackGhost, botSlackClient: WebClient) {
         if (!this.SlackTeamId) {
             throw Error("SlackTeamId must be set");
         }
         if (!this.SlackChannelId) {
             throw Error("SlackChannelId must be set");
+        }
+        if (this.isPrivate === undefined) {
+            throw Error("isPrivate must be set");
         }
 
         const eventTS = message.event_ts || message.ts;
@@ -1040,17 +922,8 @@ export class BridgedRoom {
             return this.onSlackUserJoin(message.user, message.inviter);
         }
 
-        for (const file of message.files || []) {
-            try {
-                await this.handleSlackMessageFile(file, eventTS, ghost);
-            } catch (ex) {
-                log.warn(`Couldn't handle Slack file, ignoring:`, ex);
-            }
-        }
-
         let lastEventInThread: IMatrixReplyEvent | null = null;
-        // When we're dealing with a "message_changed" event, the actual message is under a `message` property.
-        if (message.thread_ts || (message.message && message.message.thread_ts)) {
+        if (message.thread_ts) {
             lastEventInThread = await this.getReplyEvent(this.MatrixRoomId, message, this.SlackChannelId);
             if (lastEventInThread) {
                 lastEventInThread = await this.stripMatrixReplyFallback(lastEventInThread);
@@ -1064,27 +937,79 @@ export class BridgedRoom {
             this.main.datastore,
             this.main.rooms,
             this.main.ghostStore,
-            this.main,
+            this.main.bridgeMatrixBot,
+            this.matrixRoomId,
+            botSlackClient,
+            this.SlackTeamId,
+            this.SlackType,
+            this.isPrivate,
+            this.main.clientFactory,
+            this.main.config.homeserver.max_upload_size,
+            this.main
         );
-        const parsedMessage = await parser.parse(message, slackClient);
-        if (!parsedMessage) {
+        const matrixEvents = await parser.parse(message);
+        if (matrixEvents.length === 0) {
             log.warn(`Ignoring message with subtype: ${subtype}`);
             return;
         }
 
-        // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
-        // Edits still work correctly in threads nonetheless.
-        const isEdit = parsedMessage["m.new_content"];
-        if (message.thread_ts && lastEventInThread && !isEdit) {
-            return await ghost.sendInThread(
-                this.MatrixRoomId, parsedMessage, this.SlackTeamId, this.SlackChannelId, eventTS, lastEventInThread, message.thread_ts,
-            );
+        // Upload files and replace URLs in matrix events.
+        const eventsToPublish: MessageEventContent[] = [];
+        for (const event of matrixEvents) {
+            if (!["m.image", "m.video", "m.audio", "m.file"].includes(event.msgtype)) {
+                // Not a file, nothing to upload.
+                eventsToPublish.push(event);
+                continue;
+            }
+
+            const uploadedEvent = await this.uploadFileAndThumbnail(event as FileMessageEventContent, ghost);
+            if (uploadedEvent) {
+                eventsToPublish.push(uploadedEvent);
+            }
         }
 
-        if (["m.text", "m.emote"].includes(parsedMessage.msgtype)) {
-            const record = parsedMessage as unknown as Record<string, string>;
-            return await ghost.sendMessage(this.MatrixRoomId, record, this.SlackTeamId, this.SlackChannelId, eventTS);
+        for (const event of eventsToPublish) {
+            // Edits should not be sent to thread, as sendInThread is only for new events, not edits.
+            // Edits still work correctly in threads nonetheless.
+            const isEdit = event["m.new_content"];
+            if (lastEventInThread && !isEdit) {
+                await ghost.sendInThread(this.MatrixRoomId, event, this.SlackChannelId, eventTS, lastEventInThread);
+                return;
+            }
+
+            const record = event as unknown as Record<string, string>;
+            await ghost.sendMessage(this.MatrixRoomId, record, this.SlackChannelId, eventTS);
         }
+    }
+
+    private async uploadFileAndThumbnail(event: FileMessageEventContent, ghost: SlackGhost): Promise<FileMessageEventContent | null> {
+        const upload = async (url: string, mimetype: string | undefined, title: string): Promise<string | null> => {
+            mimetype = mimetype ?? "";
+            const matrixUrl = await ghost.uploadContentFromUrlWithToken({mimetype, title}, url);
+            if (!matrixUrl || matrixUrl.includes("files.slack.com")) {
+                // We failed to upload the file.
+                return null;
+            }
+            return matrixUrl;
+        };
+
+        const mainUrl = await upload(event.url, event.info?.mimetype, event.body);
+        if (!mainUrl) {
+            return null;
+        }
+        event.url = mainUrl;
+
+        if (!event.info?.thumbnail_url) {
+            return event;
+        }
+
+        const thumbnailMimetype = event.info.thumbnail_info?.mimetype ?? event.info.mimetype;
+        const thumbnailUrl = await upload(event.info.thumbnail_url, thumbnailMimetype, `thumb-${event.body}`);
+        if (thumbnailUrl) {
+            event.info.thumbnail_url = thumbnailUrl;
+        }
+
+        return event;
     }
 
     public async onMatrixTyping(currentlyTyping: string[]) {
@@ -1224,145 +1149,3 @@ export class BridgedRoom {
         }
     }
 }
-
-/**
- * Converts a slack image attachment to a matrix image event.
- *
- * @param {Object} file The slack image attachment file object.
- * @param {?integer} file.size size of the file in bytes.
- * @param {string} file.title alt-text for the file.
- * @param {string} file.mimetype mime-type of the file.
- * @param {?integer} file.original_w width of the file if an image, in pixels.
- * @param {?integer} file.original_h height of the file if an image, in pixels.
- * @param {?string} file.thumb_360 URL of a 360 pixel wide thumbnail of the
- * file, if an image.
- * @param {?integer} file.thumb_360_w width of the thumbnail of the 360 pixel
- * wide thumbnail of the file, if an image.
- * @param {?integer} file.thumb_360_h height of the thumbnail of the 36 pixel
- * wide thumbnail of the file, if an image.
- * @param {string} url The matrix file mxc.
- * @param {?string} thumbnail_url The matrix thumbnail mxc.
- * @return {Object} Matrix event content, as per https://matrix.org/docs/spec/#m-image
- */
-const slackImageToMatrixImage = (file, url: string, thumbnailUrl?: string) => {
-    const message = {
-        body: file.title,
-        info: {
-            mimetype: file.mimetype,
-            size: file.size,
-        },
-        msgtype: "m.image",
-        url,
-        // TODO: Define some matrix types
-    } as any;
-
-    if (file.original_w) {
-        message.info.w = file.original_w;
-    }
-
-    if (file.original_h) {
-        message.info.h = file.original_h;
-    }
-
-    if (thumbnailUrl) {
-        message.thumbnail_url = thumbnailUrl;
-        message.thumbnail_info = {};
-        if (file.thumb_360_w) {
-            message.thumbnail_info.w = file.thumb_360_w;
-        }
-        if (file.thumb_360_h) {
-            message.thumbnail_info.h = file.thumb_360_h;
-        }
-    }
-    return message;
-};
-
-/**
- * Converts a slack video attachment to a matrix video event.
- *
- * @param file The slack video attachment file object.
- * @param file.size size of the file in bytes.
- * @param file.title alt-text for the file.
- * @param file.mimetype mime-type of the file.
- * @param file.original_w width of the file if an image, in pixels.
- * @param file.original_h height of the file if an image, in pixels.
- * @param url The matrix file mxc.
- * @param thumbnail_url The matrix thumbnail mxc.
- * @return Matrix event content, as per https://matrix.org/docs/spec/client_server/r0.4.0.html#m-video
- */
-const slackImageToMatrixVideo = (file, url: string, thumbnailUrl?: string) => {
-    const message = {
-        body: file.title,
-        info: {
-            mimetype: file.mimetype,
-            size: file.size,
-        },
-        msgtype: "m.video",
-        url,
-        // TODO: Define some matrix types
-    } as any;
-
-    if (file.original_w) {
-        message.info.w = file.original_w;
-    }
-
-    if (file.original_h) {
-        message.info.h = file.original_h;
-    }
-
-    if (thumbnailUrl) {
-        message.thumbnail_url = thumbnailUrl;
-        // Slack don't tell us the thumbnail size for videos. Boo
-    }
-
-    return message;
-};
-
-/**
- * Converts a slack audio attachment to a matrix audio event.
- *
- * @param {Object} file The slack audio attachment file object.
- * @param {?integer} file.size size of the file in bytes.
- * @param {string} file.title alt-text for the file.
- * @param {string} file.mimetype mime-type of the file.
- * @param {string} url The matrix file mxc.
- * @return {Object} Matrix event content, as per https://matrix.org/docs/spec/client_server/r0.4.0.html#m-audio
- */
-const slackImageToMatrixAudio = (file, url: string) => ({
-    body: file.title,
-    info: {
-        mimetype: file.mimetype,
-        size: file.size,
-    },
-    msgtype: "m.audio",
-    url,
-});
-/**
- * Converts a slack file upload to a matrix file upload event.
- *
- * @param file The slack file object.
- * @param url The matrix file mxc.
- * @param thumbnail_url The matrix thumbnail mxc.
- * @return Matrix event content, as per https://matrix.org/docs/spec/#m-file
- */
-const slackFileToMatrixMessage = (file, url: string, thumbnailUrl?: string) => {
-    if (file.mimetype) {
-        if (file.mimetype.startsWith("image/")) {
-            return slackImageToMatrixImage(file, url, thumbnailUrl);
-        } else if (file.mimetype.startsWith("video/")) {
-            return slackImageToMatrixVideo(file, url, thumbnailUrl);
-        } else if (file.mimetype.startsWith("audio/")) {
-            return slackImageToMatrixAudio(file, url);
-        }
-    }
-
-    return  {
-        body: file.title,
-        info: {
-            mimetype: file.mimetype,
-            size: file.size,
-        },
-        msgtype: "m.file",
-        url,
-    };
-};

@@ -110,6 +110,10 @@ export interface ISlackFile {
     public_url_shared?: string;
     permalink?: string;
     size: number;
+    original_w?: number;
+    original_h?: number;
+    thumb_360_w?: number,
+    thumb_360_h?: number,
     shares?: {
         public?: {
             [channelId: string]: {

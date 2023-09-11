@@ -274,6 +274,7 @@ export class SlackEventHandler extends BaseSlackHandler {
         } else if (msg.subtype === "message_changed" && msg.message && msg.previous_message) {
             msg.user_id = msg.message.user!;
             msg.text = msg.message.text;
+            msg.thread_ts = msg.message.thread_ts;
 
             // Check if the edit was sent by a bot
             if (msg.message.bot_id !== undefined) {
