@@ -583,13 +583,13 @@ const slackFileToMatrixImage = (file: ISlackFile, url: string, thumbnailUrl?: st
     }
 
     if (thumbnailUrl) {
-        message.thumbnail_url = thumbnailUrl;
-        message.thumbnail_info = {};
+        message.info.thumbnail_url = thumbnailUrl;
+        message.info.thumbnail_info = {};
         if (file.thumb_360_w) {
-            message.thumbnail_info.w = file.thumb_360_w;
+            message.info.thumbnail_info.w = file.thumb_360_w;
         }
         if (file.thumb_360_h) {
-            message.thumbnail_info.h = file.thumb_360_h;
+            message.info.thumbnail_info.h = file.thumb_360_h;
         }
     }
 

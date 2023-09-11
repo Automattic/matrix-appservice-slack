@@ -1096,17 +1096,11 @@ export class BridgedRoom {
 
             fileEvent.url = uploadedUrl;
 
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            if (fileEvent.thumbnail_url) {
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                fileEvent.thumbnail_url = await ghost.uploadContentFromUrlWithToken({
-                    mimetype: fileEvent.info?.mimetype ?? "",
+            if (fileEvent.info?.thumbnail_url) {
+                fileEvent.info.thumbnail_url = await ghost.uploadContentFromUrlWithToken({
+                    mimetype: fileEvent.info.mimetype ?? "",
                     title: `thumb-${fileEvent.body}`,
-                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                    // @ts-ignore
-                }, fileEvent.thumbnail_url);
+                }, fileEvent.info.thumbnail_url) ?? undefined;
             }
             eventsToPublish.push(fileEvent);
         }
