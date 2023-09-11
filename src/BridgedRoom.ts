@@ -25,7 +25,7 @@ import { WebAPIPlatformError, WebClient } from "@slack/web-api";
 import { ChatUpdateResponse,
     ChatPostMessageResponse, ConversationsInfoResponse, FileInfoResponse, FilesSharedPublicURLResponse } from "./SlackResponses";
 import { RoomEntry, EventEntry, TeamEntry } from "./datastore/Models";
-import {FileWithThumbnailInfo, FileMessageEventContent, MatrixClient, MessageEventContent} from "matrix-bot-sdk";
+import {FileMessageEventContent, MatrixClient, MessageEventContent} from "matrix-bot-sdk";
 import {SlackMessageParser} from "./SlackMessageParser";
 
 const log = new Logger("BridgedRoom");
