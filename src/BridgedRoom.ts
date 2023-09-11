@@ -974,6 +974,7 @@ export class BridgedRoom {
             const isEdit = event["m.new_content"];
             if (lastEventInThread && !isEdit) {
                 await ghost.sendInThread(this.MatrixRoomId, event, this.SlackChannelId, eventTS, lastEventInThread);
+                return;
             }
 
             const record = event as unknown as Record<string, string>;
