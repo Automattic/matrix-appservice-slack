@@ -1084,10 +1084,18 @@ export class BridgedRoom {
 
             // Upload file and thumbnail, if present.
             const fileEvent = event as FileMessageEventContent;
-            fileEvent.url = await ghost.uploadContentFromUrlWithToken({
+            const uploadedUrl = await ghost.uploadContentFromUrlWithToken({
                 mimetype: fileEvent.info?.mimetype ?? "",
                 title: fileEvent.body,
             }, fileEvent.url);
+
+            if (!uploadedUrl || uploadedUrl.includes("files.slack.com")) {
+                // We failed to upload the url, drop the event.
+                continue;
+            }
+
+            fileEvent.url = uploadedUrl;
+
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore
             if (fileEvent.thumbnail_url) {

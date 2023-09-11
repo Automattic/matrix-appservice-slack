@@ -447,10 +447,26 @@ export class SlackGhost {
         }
     }
 
-    public async uploadContentFromUrlWithToken(file: {mimetype: string, title: string}, url: string)
-        : Promise<string> {
+    public async uploadContentFromUrlWithToken(
+        file: {mimetype: string, title: string},
+        url: string,
+    ): Promise<string | null> {
+        const tokenDelimiter = "token=";
+        const token = url.slice(url.lastIndexOf(tokenDelimiter) + tokenDelimiter.length);
+        if (!token) {
+            // Token is required to download the file.
+            return null;
+        }
+        url = url.replace(tokenDelimiter, "");
+
         try {
-            const response = await axios.get<Buffer>(url, {responseType: "arraybuffer"});
+            const response = await axios.get<Buffer>(url, {
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                },
+                responseType: "arraybuffer",
+            });
+
             if (response.status !== 200) {
                 throw Error('Failed to get file');
             }
