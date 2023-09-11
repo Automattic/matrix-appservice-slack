@@ -32,6 +32,8 @@ coverage
 build/Release
 node_modules
 .yarn
+.yarnrc
+.yarnrc.yml
 
 # typescript
 lib
