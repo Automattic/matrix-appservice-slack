@@ -112,7 +112,7 @@ UABC123, foo
 UXYZ789, bar
 ```
 
-You can import this file with the a database query:
+You can import this file with a database query:
 
 ```sql
 COPY matrix_usernames(slack_id, matrix_username) FROM '/path/to/mapping.csv' WITH (FORMAT csv);
