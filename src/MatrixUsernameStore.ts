@@ -9,27 +9,25 @@ const log = new Logger("MatrixUsernameStore");
 
 export class MatrixUsernameStore {
     private readonly teamDomain: string;
-    private readonly url: URL;
+    private readonly url?: URL;
     private readonly cache = new Map<string, string>();
 
     constructor(
         private datastore: Datastore,
-        private config: IConfig,
+        config: IConfig,
     ) {
         if (!config.matrix_username_store) {
             throw Error("matrix_username_store is not correctly configured");
         }
 
-        if (!config.matrix_username_store.url) {
-            throw new Error(`matrix_username_store.url must be set`);
-        }
-
-        if (!config.matrix_username_store?.secret) {
-            throw new Error(`matrix_username_store.secret must be set`);
+        if (config.matrix_username_store.url) {
+            this.url = new URL(config.matrix_username_store.url);
+            if (config.matrix_username_store.secret) {
+                this.url.searchParams.set("secret", config.matrix_username_store.secret);
+            }
         }
 
         this.teamDomain = config.matrix_username_store.team_domain;
-        this.url = new URL(`${config.matrix_username_store.url}?secret=${config.matrix_username_store.secret}`);
     }
 
     hasMappingForTeam(teamDomain: string): boolean {
@@ -50,7 +48,11 @@ export class MatrixUsernameStore {
             return username;
         }
 
-        username = await this.getFromRemote(slackUserId);
+        if (!this.url) {
+            return null;
+        }
+
+        username = await this.getFromRemote(slackUserId, this.url);
         if (!username) {
             return null;
         }
@@ -61,16 +63,19 @@ export class MatrixUsernameStore {
         return username;
     }
 
-    private async getFromRemote(slackUserId: string): Promise<MatrixUsername | null> {
+    private async getFromRemote(slackUserId: string, url: URL): Promise<MatrixUsername | null> {
         const client = axios.create();
 
         const logError = (r: AxiosResponse | undefined) => {
             log.debug(`Failed to retrieve Matrix username for ${slackUserId}:`, r?.status, r?.statusText, r?.headers, r?.data);
         };
 
+        const remoteUrl = new URL(url.toString());
+        remoteUrl.searchParams.set("slack_id", slackUserId);
+
         let response: AxiosResponse;
         try {
-            response = await client.get(`${this.url.toString()}&slack_id=${slackUserId}`);
+            response = await client.get(remoteUrl.toString());
             if (response.data.error || !response.data.matrix) {
                 logError(response);
                 return null;
