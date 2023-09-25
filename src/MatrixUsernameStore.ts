@@ -20,8 +20,8 @@ export class MatrixUsernameStore {
             throw Error("matrix_username_store is not correctly configured");
         }
 
-        if (config.matrix_username_store?.url.startsWith("http://")) {
-            throw new Error(`matrix_username_store.url must be an https URL, got ${config.matrix_username_store.url}`);
+        if (!config.matrix_username_store.url) {
+            throw new Error(`matrix_username_store.url must be set`);
         }
 
         if (!config.matrix_username_store?.secret) {
