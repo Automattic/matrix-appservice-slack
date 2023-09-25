@@ -8,7 +8,7 @@ type MatrixUsername = string;
 const log = new Logger("MatrixUsernameStore");
 
 export class MatrixUsernameStore {
-    private readonly teamDomains: string[];
+    private readonly teamDomain: string;
     private readonly url: URL;
     private readonly cache = new Map<string, string>();
 
@@ -28,12 +28,12 @@ export class MatrixUsernameStore {
             throw new Error(`matrix_username_store.secret must be set`);
         }
 
-        this.teamDomains = config.matrix_username_store.team_domains;
+        this.teamDomain = config.matrix_username_store.team_domain;
         this.url = new URL(`${config.matrix_username_store.url}?secret=${config.matrix_username_store.secret}`);
     }
 
     hasMappingForTeam(teamDomain: string): boolean {
-        return this.teamDomains.includes(teamDomain);
+        return this.teamDomain === teamDomain;
     }
 
     async getBySlackUserId(slackUserId: string): Promise<MatrixUsername | null> {
