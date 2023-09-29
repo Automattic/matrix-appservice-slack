@@ -55,12 +55,14 @@ const TEAM_SYNC_FAILSAFE = 10;
  */
 export class TeamSyncer {
     private teamConfigs: {[teamId: string]: ITeamSyncConfig} = {};
+    private readonly adminRoom?: string;
     constructor(private main: Main) {
         const config = main.config;
         if (!config.team_sync) {
             throw Error("team_sync is not defined in the config");
         }
         // Apply defaults to configs
+        this.adminRoom = config.matrix_admin_room;
         this.teamConfigs = config.team_sync;
         for (const teamConfig of Object.values(this.teamConfigs)) {
             if (teamConfig.channels?.enabled) {
@@ -366,6 +368,14 @@ export class TeamSyncer {
         if (!room) {
             log.warn("Not unlinking channel, no room found");
             return;
+        }
+
+        // notify admins
+        if (this.adminRoom) {
+            await this.main.botIntent.sendMessage(this.adminRoom, {
+                msgtype: "m.notice",
+                body: `${teamId} removed channel ${channelId}`,
+            });
         }
 
         try {
