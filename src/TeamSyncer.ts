@@ -374,7 +374,7 @@ export class TeamSyncer {
         if (this.adminRoom) {
             await this.main.botIntent.sendMessage(this.adminRoom, {
                 msgtype: "m.notice",
-                body: `${teamId} removed channel ${channelId}`,
+                body: `${teamId} removed channel ${channelId}, bridged room: ${room.MatrixRoomId}`,
             });
         }
 
