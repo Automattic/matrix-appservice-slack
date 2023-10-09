@@ -32,6 +32,7 @@ export interface IConfig {
     inbound_uri_prefix?: string;
     username_prefix: string;
 
+    super_admin_user?: string;
     matrix_admin_room?: string;
 
     rmau_limit?: number;
