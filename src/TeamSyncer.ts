@@ -375,35 +375,8 @@ export class TeamSyncer {
             return;
         }
 
-        // notify admins
-        if (this.adminRoom) {
-            await this.main.botIntent.sendMessage(this.adminRoom, {
-                msgtype: "m.notice",
-                body: `${teamId} removed channel ${channelId}, bridged room: ${room.MatrixRoomId}`,
-            });
-        }
-
-        try {
-            await this.main.botIntent.sendMessage(room.MatrixRoomId, {
-                msgtype: "m.notice",
-                body: "The Slack channel bridged to this room has been deleted.",
-            });
-        } catch (ex) {
-            log.warn("Failed to send deletion notice into the room:", ex);
-        }
-
-        // Hide deleted channels in the room directory.
-        try {
-            await this.main.botIntent.setRoomDirectoryVisibility(room.MatrixRoomId, "private");
-        } catch (ex) {
-            log.warn("Failed to hide room from the room directory:", ex);
-        }
-
-        try {
-            await this.main.actionUnlink({ matrix_room_id: room.MatrixRoomId });
-        } catch (ex) {
-            log.warn("Tried to unlink room but failed:", ex);
-        }
+        await this.notifyAdmins(`${teamId} removed channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
+        await this.shutDownBridgedRoom("deleted", room.MatrixRoomId);
     }
 
     public async onChannelArchived(teamId: string, channelId: string): Promise<void> {
@@ -417,32 +390,38 @@ export class TeamSyncer {
             return;
         }
 
-        // notify admins
+        await this.notifyAdmins(`${teamId} archived channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
+        await this.shutDownBridgedRoom("archived", room.MatrixRoomId);
+    }
+
+    public async notifyAdmins(message: string) {
         if (this.adminRoom) {
             await this.main.botIntent.sendMessage(this.adminRoom, {
                 msgtype: "m.notice",
-                body: `${teamId} archived channel ${channelId}, bridged room: ${room.MatrixRoomId}`,
+                body: message,
             });
         }
+    }
 
+    public async shutDownBridgedRoom(reason: string, roomId: string) {
         try {
-            await this.main.botIntent.sendMessage(room.MatrixRoomId, {
+            await this.main.botIntent.sendMessage(roomId, {
                 msgtype: "m.notice",
-                body: "The Slack channel bridged to this room has been archived.",
+                body: `The Slack channel bridged to this room has been \`${reason}\`.`,
             });
         } catch (ex) {
-            log.warn("Failed to send archived notice into the room:", ex);
+            log.warn(`Failed to send \`${reason}\` notice into the room:`, ex);
         }
 
-        // Hide deleted channels in the room directory.
+        // Hide from room directory.
         try {
-            await this.main.botIntent.setRoomDirectoryVisibility(room.MatrixRoomId, "private");
+            await this.main.botIntent.setRoomDirectoryVisibility(roomId, "private");
         } catch (ex) {
             log.warn("Failed to hide room from the room directory:", ex);
         }
 
         try {
-            await this.main.actionUnlink({ matrix_room_id: room.MatrixRoomId });
+            await this.main.actionUnlink({ matrix_room_id: roomId });
         } catch (ex) {
             log.warn("Tried to unlink room but failed:", ex);
         }
