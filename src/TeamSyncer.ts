@@ -406,6 +406,48 @@ export class TeamSyncer {
         }
     }
 
+    public async onChannelArchived(teamId: string, channelId: string): Promise<void> {
+        log.info(`${teamId} archived channel ${channelId}`);
+        if (!this.getTeamSyncConfig(teamId, "channel", channelId)) {
+            return;
+        }
+        const room = this.main.rooms.getBySlackChannelId(channelId);
+        if (!room) {
+            log.warn("Not unlinking channel, no room found");
+            return;
+        }
+
+        // notify admins
+        if (this.adminRoom) {
+            await this.main.botIntent.sendMessage(this.adminRoom, {
+                msgtype: "m.notice",
+                body: `${teamId} archived channel ${channelId}, bridged room: ${room.MatrixRoomId}`,
+            });
+        }
+
+        try {
+            await this.main.botIntent.sendMessage(room.MatrixRoomId, {
+                msgtype: "m.notice",
+                body: "The Slack channel bridged to this room has been archived.",
+            });
+        } catch (ex) {
+            log.warn("Failed to send archived notice into the room:", ex);
+        }
+
+        // Hide deleted channels in the room directory.
+        try {
+            await this.main.botIntent.setRoomDirectoryVisibility(room.MatrixRoomId, "private");
+        } catch (ex) {
+            log.warn("Failed to hide room from the room directory:", ex);
+        }
+
+        try {
+            await this.main.actionUnlink({ matrix_room_id: room.MatrixRoomId });
+        } catch (ex) {
+            log.warn("Tried to unlink room but failed:", ex);
+        }
+    }
+
     public async syncMembershipForRoom(roomId: string, channelId: string, teamId: string, client: WebClient): Promise<void> {
         const existingGhosts = await this.main.listGhostUsers(roomId);
         // We assume that we have this
