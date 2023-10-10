@@ -418,28 +418,36 @@ export class TeamSyncer {
         // Ghosts will exist already: We joined them in the user sync.
         const ghosts = await Promise.all(members.members.map(async(slackUserId) => this.main.ghostStore.get(slackUserId, teamInfo.domain, teamId)));
 
-        const joinedUsers = ghosts.filter((g) => !existingGhosts.includes(g.matrixUserId)); // Skip users that are joined.
-        const leftUsers = existingGhosts.map((userId) => ghosts.find((g) => g.matrixUserId === userId )).filter(g => !!g) as SlackGhost[];
-        log.info(`Joining ${joinedUsers.length} ghosts to ${roomId}`);
-        log.info(`Leaving ${leftUsers.length} ghosts to ${roomId}`);
+        const joinedUsers = ghosts.filter((g) => !existingGhosts.includes(g.matrixUserId)).map(g => g.matrixUserId);
+        const leftUsers = existingGhosts.map((userId, index) => {
+            const ghost = ghosts.find((g) => g.matrixUserId === userId);
+            return ghost === undefined ? index : null;
+        }).filter(index => index !== null).map(index =>
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-ignore
+            existingGhosts[index]
+        );
+
+        log.info(`Joining ${joinedUsers.length} ghosts to ${roomId}`,joinedUsers);
+        log.info(`Leaving ${leftUsers.length} ghosts to ${roomId}`,leftUsers);
 
         const queue = new PQueue({concurrency: JOIN_CONCURRENCY});
 
         // Join users who aren't joined
-        queue.addAll(joinedUsers.map((ghost) => async () => {
+        queue.addAll(joinedUsers.map((userId) => async () => {
             try {
-                await this.main.membershipQueue.join(roomId, ghost.matrixUserId, { getId: () => ghost.matrixUserId });
+                await this.main.membershipQueue.join(roomId, userId, { getId: () => userId });
             } catch (ex) {
-                log.warn(`Failed to join ${ghost.matrixUserId} to ${roomId}`);
+                log.warn(`Failed to join ${userId} to ${roomId}`);
             }
         })).catch((ex) => log.error(`queue.addAll(joinedUsers) rejected with an error:`, ex));
 
         // Leave users who are joined
-        queue.addAll(leftUsers.map((ghost) => async () => {
+        queue.addAll(leftUsers.map((userId) => async () => {
             try {
-                await this.main.membershipQueue.leave(roomId, ghost.matrixUserId, { getId: () => ghost.matrixUserId });
+                await this.main.membershipQueue.leave(roomId, userId, { getId: () => userId });
             } catch (ex) {
-                log.warn(`Failed to leave ${ghost.matrixUserId} from ${roomId}`);
+                log.warn(`Failed to leave ${userId} from ${roomId}`);
             }
         })).catch((ex) => log.error(`queue.addAll(leftUsers) rejected with an error:`, ex));
 
