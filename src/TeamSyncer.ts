@@ -40,8 +40,12 @@ export interface ITeamSyncConfig {
     };
     users?: {
         enabled: boolean;
-        moderators?: string[]; // promote these users as moderators
     };
+    rooms?: {
+        creator?: string;
+        administrators?: string[]; // promote these users as admins
+        moderators?: string[]; // promote these users as moderators
+    }
 }
 
 const TEAM_SYNC_CONCURRENCY = 1;
@@ -56,7 +60,6 @@ const TEAM_SYNC_FAILSAFE = 10;
  */
 export class TeamSyncer {
     private teamConfigs: {[teamId: string]: ITeamSyncConfig} = {};
-    private readonly superAdminUser?: string;
     private readonly adminRoom?: string;
     constructor(private main: Main) {
         const config = main.config;
@@ -64,7 +67,6 @@ export class TeamSyncer {
             throw Error("team_sync is not defined in the config");
         }
         // Apply defaults to configs
-        this.superAdminUser = config.super_admin_user;
         this.adminRoom = config.matrix_admin_room;
         this.teamConfigs = config.team_sync;
         for (const teamConfig of Object.values(this.teamConfigs)) {
@@ -511,12 +513,33 @@ export class TeamSyncer {
         isPublic = true, inviteList: string[] = []): Promise<string> {
         let intent: Intent;
         let creatorUserId: string|undefined;
-        if (this.superAdminUser) {
-            intent = this.main.getIntent(this.superAdminUser);
+
+        let admins: string[] | undefined;
+        let mods: string[] | undefined;
+        let matrixCreator: string | undefined;
+
+        for (const team in this.teamConfigs) {
+            if (team === "all" || team === teamId ) {
+                const teamConfig = this.teamConfigs[team];
+                mods = teamConfig?.rooms?.moderators;
+                admins = teamConfig?.rooms?.administrators;
+                matrixCreator = teamConfig?.rooms?.creator;
+            }
+        }
+
+        admins?.push(this.main.botUserId);
+        if (matrixCreator) {
+            admins?.push(matrixCreator);
+        }
+
+        if (matrixCreator) {
+            intent = this.main.getIntent(matrixCreator);
         } else {
             try {
                 creatorUserId = (await this.main.ghostStore.get(creator, undefined, teamId)).matrixUserId;
                 intent = this.main.getIntent(creatorUserId);
+
+                mods?.push(creatorUserId); // make slack channel creator (user) a mod as well
             } catch (ex) {
                 // Couldn't get the creator's mxid, using the bot.
                 intent = this.main.botIntent;
@@ -530,22 +553,11 @@ export class TeamSyncer {
         }
         log.debug("Creating new room for channel", channel.name, topic, alias);
         const plUsers = {};
-        plUsers[this.main.botUserId] = 100;
-        if (this.superAdminUser) {
-            plUsers[this.superAdminUser] = 100;
+        for (const mod of mods ?? []) {
+            plUsers[mod] = 50;
         }
-        if (creatorUserId) {
-            plUsers[creatorUserId] = 50;
-        }
-        for (const team in this.teamConfigs) {
-            if (team === "all" || team === teamId ) {
-                const mods = this.teamConfigs[team]?.users?.moderators;
-                if (mods && Array.isArray(mods)) {
-                    for (const mod of mods) {
-                        plUsers[mod] = 50;
-                    }
-                }
-            }
+        for (const admin of admins ?? []) {
+            plUsers[admin] = 100;
         }
         inviteList = inviteList.filter((s) => s !== creatorUserId || s !== this.main.botUserId);
         inviteList.push(this.main.botUserId);
