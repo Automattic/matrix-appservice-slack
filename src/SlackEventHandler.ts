@@ -211,7 +211,7 @@ export class SlackEventHandler extends BaseSlackHandler {
                 break;
             case "channel_created":
             case "channel_deleted":
-            case "channel_archived":
+            case "channel_archive":
             case "user_change":
             case "team_join":
                 await this.handleTeamSyncEvent(event as ISlackTeamSyncEvent, teamId);
