@@ -231,6 +231,14 @@ export class TeamSyncer {
         const client = await this.main.clientFactory.getTeamClient(teamId);
         const { channel } = (await client.conversations.info({ channel: channelId })) as ConversationsInfoResponse;
         await this.syncChannel(teamId, channel);
+        const room = this.main.rooms.getBySlackChannelId(channelId);
+        if (!room) {
+            log.warn(`No bridged room found for new channel (${channelId}) after sync`);
+            await this.notifyAdmins(`${teamId} created channel ${channelId} but problem creating a bridge`);
+            return;
+        }
+
+        await this.notifyAdmins(`${teamId} created channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
     }
 
     public async onDiscoveredPrivateChannel(teamId: string, client: WebClient, chanInfo: ConversationsInfoResponse): Promise<void> {
