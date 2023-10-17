@@ -409,7 +409,7 @@ export class TeamSyncer {
                 body: `The Slack channel bridged to this room has been '${reason}'.`,
             });
         } catch (ex) {
-            log.warn(`Failed to send \`${reason}\` notice into the room:`, ex);
+            log.warn(`Failed to send '${reason}' notice into the room:`, ex);
         }
 
         // Hide from room directory.
