@@ -553,6 +553,7 @@ export class TeamSyncer {
                 mods = teamConfig?.rooms?.moderators;
                 admins = teamConfig?.rooms?.administrators;
                 matrixCreator = teamConfig?.rooms?.creator;
+                break;
             }
         }
 
