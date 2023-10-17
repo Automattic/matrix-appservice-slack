@@ -423,6 +423,7 @@ export class TeamSyncer {
             await this.main.actionUnlink({ matrix_room_id: roomId });
         } catch (ex) {
             log.warn("Tried to unlink room but failed:", ex);
+            await this.main.notifyAdmins(`failed to unlink bridge on ${roomId}`);
         }
     }
 
