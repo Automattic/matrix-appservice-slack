@@ -1289,13 +1289,7 @@ export class Main {
         }
 
         log.info("Bridge initialised");
-        // notify admins
-        if (this.config.matrix_admin_room) {
-            void this.botIntent.sendMessage(this.config.matrix_admin_room,{
-                msgtype: "m.notice",
-                body: "Bridge initialised",
-            });
-        }
+        await this.notifyAdmins("Bridge initialised");
 
         this.ready = true;
         return port;
@@ -1779,4 +1773,12 @@ export class Main {
         log.info("Enabled RTM");
     }
 
+    public async notifyAdmins(message: string) {
+        if (this.config.matrix_admin_room) {
+            await this.botIntent.sendMessage(this.config.matrix_admin_room, {
+                msgtype: "m.notice",
+                body: message,
+            });
+        }
+    }
 }

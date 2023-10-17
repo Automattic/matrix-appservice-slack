@@ -234,11 +234,11 @@ export class TeamSyncer {
         const room = this.main.rooms.getBySlackChannelId(channelId);
         if (!room) {
             log.warn(`No bridged room found for new channel (${channelId}) after sync`);
-            await this.notifyAdmins(`${teamId} created channel ${channelId} but problem creating a bridge`);
+            await this.main.notifyAdmins(`${teamId} created channel ${channelId} but problem creating a bridge`);
             return;
         }
 
-        await this.notifyAdmins(`${teamId} created channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
+        await this.main.notifyAdmins(`${teamId} created channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
     }
 
     public async onDiscoveredPrivateChannel(teamId: string, client: WebClient, chanInfo: ConversationsInfoResponse): Promise<void> {
@@ -383,7 +383,7 @@ export class TeamSyncer {
             return;
         }
 
-        await this.notifyAdmins(`${teamId} removed channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
+        await this.main.notifyAdmins(`${teamId} removed channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
         await this.shutDownBridgedRoom("deleted", room.MatrixRoomId);
     }
 
@@ -398,17 +398,8 @@ export class TeamSyncer {
             return;
         }
 
-        await this.notifyAdmins(`${teamId} archived channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
+        await this.main.notifyAdmins(`${teamId} archived channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
         await this.shutDownBridgedRoom("archived", room.MatrixRoomId);
-    }
-
-    public async notifyAdmins(message: string) {
-        if (this.adminRoom) {
-            await this.main.botIntent.sendMessage(this.adminRoom, {
-                msgtype: "m.notice",
-                body: message,
-            });
-        }
     }
 
     public async shutDownBridgedRoom(reason: string, roomId: string) {
