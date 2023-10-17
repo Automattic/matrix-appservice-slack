@@ -1788,10 +1788,14 @@ export class Main {
 
     public async notifyAdmins(message: string) {
         if (this.config.matrix_admin_room) {
-            await this.botIntent.sendMessage(this.config.matrix_admin_room, {
-                msgtype: "m.notice",
-                body: message,
-            });
+            try {
+                await this.botIntent.sendMessage(this.config.matrix_admin_room, {
+                    msgtype: "m.notice",
+                    body: message,
+                });
+            } catch(ex) {
+                log.warn("failed to notify admins", message);
+            }
         }
     }
 }
