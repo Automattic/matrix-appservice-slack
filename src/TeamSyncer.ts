@@ -586,13 +586,7 @@ export class TeamSyncer {
                 intent = this.main.botIntent;
             }
         }
-        const aliasPrefix = this.getAliasPrefix(teamId);
-        const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : undefined;
-        let topic: undefined|string;
-        if (channel.purpose) {
-            topic = channel.purpose.value;
-        }
-        log.debug("Creating new room for channel", channel.name, topic, alias);
+
         const plUsers = {};
         for (const mod of mods ?? []) {
             plUsers[mod] = 50;
@@ -600,6 +594,15 @@ export class TeamSyncer {
         for (const admin of admins ?? []) {
             plUsers[admin] = 100;
         }
+
+        const aliasPrefix = this.getAliasPrefix(teamId);
+        const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : undefined;
+        let topic: undefined|string;
+        if (channel.purpose) {
+            topic = channel.purpose.value;
+        }
+
+        log.debug("Creating new room for channel", channel.name, topic, alias);
         inviteList = inviteList.filter((s) => s !== creatorUserId || s !== this.main.botUserId);
         inviteList.push(this.main.botUserId);
         const extraContent: Record<string, unknown>[] = [];
