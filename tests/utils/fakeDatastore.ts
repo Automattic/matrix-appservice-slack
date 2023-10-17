@@ -214,4 +214,8 @@ export class FakeDatastore implements Datastore {
     async setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null> {
         throw new Error("Method not implemented.");
     }
+
+    async getAllMatrixUsernames(): Promise<string[]> {
+        throw new Error("Method not implemented.");
+    }
 }
