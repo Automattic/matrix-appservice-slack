@@ -552,41 +552,46 @@ export class TeamSyncer {
     private async createRoomForChannel(teamId: string, creator: string, channel: ConversationsInfo,
         isPublic = true, inviteList: string[] = []): Promise<string> {
         let intent: Intent;
-        let creatorUserId: string|undefined;
 
         let admins: string[] | undefined;
         let mods: string[] | undefined;
-        let matrixCreator: string | undefined;
+        let creatorFromConfig: string | undefined;
 
         for (const team in this.teamConfigs) {
             if (team === "all" || team === teamId ) {
                 const teamConfig = this.teamConfigs[team];
                 mods = teamConfig?.rooms?.moderators;
                 admins = teamConfig?.rooms?.administrators;
-                matrixCreator = teamConfig?.rooms?.creator;
+                creatorFromConfig = teamConfig?.rooms?.creator;
                 break;
             }
         }
 
+        // default behavior of bot user being admin on room
         admins?.push(this.main.botUserId);
-        if (matrixCreator) {
-            admins?.push(matrixCreator);
+
+        // creator specified in config should be an admin
+        if (creatorFromConfig) {
+            admins?.push(creatorFromConfig);
         }
 
-        if (matrixCreator) {
-            intent = this.main.getIntent(matrixCreator);
-        } else {
+        let creatorUserId = creatorFromConfig;
+        if (!creatorUserId) {
             try {
                 creatorUserId = (await this.main.ghostStore.get(creator, undefined, teamId)).matrixUserId;
-                intent = this.main.getIntent(creatorUserId);
-
-                mods?.push(creatorUserId); // make slack channel creator (user) a mod as well
+                mods?.push(creatorUserId); // make Slack channel creator (user) a mod as well
             } catch (ex) {
-                // Couldn't get the creator's mxid, using the bot.
-                intent = this.main.botIntent;
+                // Couldn't get the creator's mxid, will default to the bot below.
             }
         }
 
+        if (creatorUserId) {
+            intent = this.main.getIntent(creatorUserId);
+        } else {
+            intent = this.main.botIntent;
+        }
+
+        // power levels
         const plUsers = {};
         for (const mod of mods ?? []) {
             plUsers[mod] = 50;
