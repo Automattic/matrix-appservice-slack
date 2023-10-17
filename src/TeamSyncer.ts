@@ -427,26 +427,37 @@ export class TeamSyncer {
     }
 
     public async syncMembershipForRoom(roomId: string, channelId: string, teamId: string, client: WebClient): Promise<void> {
-        const existingGhosts = await this.main.listGhostUsers(roomId);
-        // We assume that we have this
         const teamInfo = (await this.main.datastore.getTeam(teamId));
         if (!teamInfo) {
             throw Error("Could not find team");
         }
-        // Finally, sync membership for the channel.
-        const members = await client.conversations.members({channel: channelId}) as ConversationsMembersResponse;
-        // Ghosts will exist already: We joined them in the user sync.
-        const ghosts = await Promise.all(members.members.map(async(slackUserId) => this.main.ghostStore.get(slackUserId, teamInfo.domain, teamId)));
 
-        const joinedUsers = ghosts.filter((g) => !existingGhosts.includes(g.matrixUserId)).map(g => g.matrixUserId);
-        const leftUsers = existingGhosts.map((userId, index) => {
-            const ghost = ghosts.find((g) => g.matrixUserId === userId);
-            return ghost === undefined ? index : null;
-        }).filter(index => index !== null).map(index =>
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
-            existingGhosts[index]
+        // create Set for both matrix membership state and slack membership state
+        // compare them to figure out who all needs to join the matrix room and leave the matrix room
+        // this obviously assumes we treat slack as the source of truth for membership
+        const existingMatrixUsersSet = new Set<string>();
+        const slackUsersSet = new Set<string>();
+
+        const existingMatrixUsers = await this.main.listGhostAndMappedUsers(roomId);
+        for (const u of existingMatrixUsers) {
+            existingMatrixUsersSet.add(u);
+        }
+
+        const slackUsers = await client.conversations.members({channel: channelId}) as ConversationsMembersResponse;
+        await Promise.all(
+            slackUsers.members.map(async(slackUserId) => {
+                const ghost = await this.main.ghostStore.get(slackUserId, teamInfo.domain, teamId);
+                slackUsersSet.add(ghost.matrixUserId);
+            })
         );
+
+        const joinedUsers: string[] = [];
+        slackUsersSet.forEach((u) => {
+            if (!existingMatrixUsersSet.has(u)) {
+                joinedUsers.push(u);
+            }
+        });
+        const leftUsers = existingMatrixUsers.filter((userId) => !slackUsersSet.has(userId));
 
         log.info(`Joining ${joinedUsers.length} ghosts to ${roomId}`,joinedUsers);
         log.info(`Leaving ${leftUsers.length} ghosts to ${roomId}`,leftUsers);

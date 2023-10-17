@@ -640,6 +640,19 @@ export class Main {
         return userIds.filter((i) => i.match(regexp));
     }
 
+    public async listGhostAndMappedUsers(roomId: string): Promise<string[]> {
+        const userIds = await this.listAllUsers(roomId);
+        const mappedUsernames = await this.datastore.getAllMatrixUsernames();
+
+        const mappedUsersSet = new Set();
+        for (const mappedUsername of mappedUsernames ?? []) {
+            mappedUsersSet.add("@" + mappedUsername + ":" + this.config.homeserver.server_name);
+        }
+
+        const regexp = new RegExp("^@" + this.config.username_prefix);
+        return userIds.filter((userId) => mappedUsersSet.has(userId) || userId.match(regexp));
+    }
+
     public async drainAndLeaveMatrixRoom(roomId: string): Promise<void> {
         const userIds = await this.listGhostUsers(roomId);
         log.info(`Draining ${userIds.length} ghosts from ${roomId}`);
