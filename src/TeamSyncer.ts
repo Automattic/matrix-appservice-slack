@@ -512,8 +512,8 @@ export class TeamSyncer {
                 try {
                     await client.chat.postEphemeral({
                         user: channelItem.creator,
-                        text: `Please invite \`@${user.name}\` app to this channel (\`/invite @${user.name}\`) so that ` +
-                            `this channel is also available on Matrix side.`,
+                        text: `Please invite \`@${user.name}\` to this channel (\`/invite @${user.name}\`) so that ` +
+                            `the channel is also available on Matrix.`,
                         channel: channelItem.id,
                     });
                 } catch (error) {
