@@ -720,15 +720,15 @@ export class BridgedRoom {
             const ghost = await this.main.ghostStore.getForSlackMessage(message, this.slackTeamId);
             await ghost.cancelTyping(this.MatrixRoomId); // If they were typing, stop them from doing that.
 
-            let isTeamSyncEnabled = false;
+            let isTeamSyncEnabledForUsers = false;
             for (const team in this.main.config.team_sync) {
                 if (team === "all" || team === this.slackTeamId ) {
                     if (this.main.config.team_sync[team].users?.enabled) {
-                        isTeamSyncEnabled = true;
+                        isTeamSyncEnabledForUsers = true;
                     }
                 }
             }
-            if (!isTeamSyncEnabled) {
+            if (!isTeamSyncEnabledForUsers) {
                 const ghostChanged = await ghost.update(message, this.SlackClient);
                 if (ghostChanged) {
                     await this.main.fixDMMetadata(this, ghost);
