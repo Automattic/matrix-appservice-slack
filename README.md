@@ -158,3 +158,12 @@ The endpoint should respond with `401` when the secret doesn't match, `404` when
   "matrix": "janedoe"
 }
 ```
+
+## Team Sync Modifications
+
+- Don't update Slack ghost users upon every message as they are already handled in realtime under team sync
+- Fix bug in membership change calculation when syncing channels upon boot
+- Handle `channel_archive` slack event
+- Define `rooms` field under teamsync config for who should be the creator, mods and admins in new rooms created by team sync
+- Tweak message that gets posted in a new channel to suggest inviting `matrixbridge` Slack app
+- Notify admins in admin room for bridge when bridge initialises upon boot, when a Slack channel is created/archived/deleted and unlinking of bridge fails upon channel archive/delete event.
