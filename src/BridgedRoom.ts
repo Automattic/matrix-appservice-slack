@@ -718,11 +718,23 @@ export class BridgedRoom {
         }
         try {
             const ghost = await this.main.ghostStore.getForSlackMessage(message, this.slackTeamId);
-            const ghostChanged = await ghost.update(message, this.SlackClient);
             await ghost.cancelTyping(this.MatrixRoomId); // If they were typing, stop them from doing that.
-            if (ghostChanged) {
-                await this.main.fixDMMetadata(this, ghost);
+
+            let isTeamSyncEnabledForUsers = false;
+            for (const team in this.main.config.team_sync) {
+                if (team === "all" || team === this.slackTeamId ) {
+                    if (this.main.config.team_sync[team].users?.enabled) {
+                        isTeamSyncEnabledForUsers = true;
+                    }
+                }
             }
+            if (!isTeamSyncEnabledForUsers) {
+                const ghostChanged = await ghost.update(message, this.SlackClient);
+                if (ghostChanged) {
+                    await this.main.fixDMMetadata(this, ghost);
+                }
+            }
+
             this.slackSendLock = this.slackSendLock.then(() => {
                 // Check again
                 if (!isMessageChangedEvent && this.recentSlackMessages.includes(message.ts)) {

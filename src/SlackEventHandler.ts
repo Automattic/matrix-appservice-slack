@@ -113,8 +113,8 @@ export class SlackEventHandler extends BaseSlackHandler {
      * to events in order to handle them.
      */
     protected static SUPPORTED_EVENTS: string[] = ["message", "reaction_added", "reaction_removed",
-        "team_domain_change", "channel_rename", "user_change", "user_typing", "member_joined_channel",
-        "channel_created", "channel_deleted", "team_join"];
+        "team_domain_change", "channel_rename", "user_change", "user_typing", "member_joined_channel", "member_left_channel",
+        "channel_created", "channel_deleted", "channel_archive", "team_join"];
     constructor(main: Main) {
         super(main);
     }
@@ -211,6 +211,7 @@ export class SlackEventHandler extends BaseSlackHandler {
                 break;
             case "channel_created":
             case "channel_deleted":
+            case "channel_archive":
             case "user_change":
             case "team_join":
                 await this.handleTeamSyncEvent(event as ISlackTeamSyncEvent, teamId);
@@ -367,6 +368,8 @@ export class SlackEventHandler extends BaseSlackHandler {
             await this.main.teamSyncer.onChannelAdded(teamId, eventDetails.channel.id, eventDetails.channel.name, eventDetails.channel.creator);
         } else if (event.type === "channel_deleted") {
             await this.main.teamSyncer.onChannelDeleted(teamId, event.channel);
+        } else if (event.type === "channel_archive") {
+            await this.main.teamSyncer.onChannelArchived(teamId, event.channel);
         } else if (event.type === "team_join" || event.type === "user_change") {
             const user = event.user!;
             const domain = (await this.main.datastore.getTeam(teamId))!.domain;

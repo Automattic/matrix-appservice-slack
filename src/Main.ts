@@ -640,6 +640,19 @@ export class Main {
         return userIds.filter((i) => i.match(regexp));
     }
 
+    public async listGhostAndMappedUsers(roomId: string): Promise<string[]> {
+        const userIds = await this.listAllUsers(roomId);
+        const mappedUsernames = await this.datastore.getAllMatrixUsernames();
+
+        const mappedUsersSet = new Set();
+        for (const mappedUsername of mappedUsernames ?? []) {
+            mappedUsersSet.add("@" + mappedUsername + ":" + this.config.homeserver.server_name);
+        }
+
+        const regexp = new RegExp("^@" + this.config.username_prefix);
+        return userIds.filter((userId) => mappedUsersSet.has(userId) || userId.match(regexp));
+    }
+
     public async drainAndLeaveMatrixRoom(roomId: string): Promise<void> {
         const userIds = await this.listGhostUsers(roomId);
         log.info(`Draining ${userIds.length} ghosts from ${roomId}`);
@@ -1289,6 +1302,8 @@ export class Main {
         }
 
         log.info("Bridge initialised");
+        await this.notifyAdmins("Bridge initialised");
+
         this.ready = true;
         return port;
     }
@@ -1771,4 +1786,16 @@ export class Main {
         log.info("Enabled RTM");
     }
 
+    public async notifyAdmins(message: string) {
+        if (this.config.matrix_admin_room) {
+            try {
+                await this.botIntent.sendMessage(this.config.matrix_admin_room, {
+                    msgtype: "m.notice",
+                    body: message,
+                });
+            } catch(ex) {
+                log.warn("failed to notify admins", message);
+            }
+        }
+    }
 }

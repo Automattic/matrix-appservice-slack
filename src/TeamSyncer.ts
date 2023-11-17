@@ -41,6 +41,11 @@ export interface ITeamSyncConfig {
     users?: {
         enabled: boolean;
     };
+    rooms?: {
+        creator?: string;
+        administrators?: string[]; // promote these users as admins
+        moderators?: string[]; // promote these users as moderators
+    }
 }
 
 const TEAM_SYNC_CONCURRENCY = 1;
@@ -55,12 +60,14 @@ const TEAM_SYNC_FAILSAFE = 10;
  */
 export class TeamSyncer {
     private teamConfigs: {[teamId: string]: ITeamSyncConfig} = {};
+    private readonly adminRoom?: string;
     constructor(private main: Main) {
         const config = main.config;
         if (!config.team_sync) {
             throw Error("team_sync is not defined in the config");
         }
         // Apply defaults to configs
+        this.adminRoom = config.matrix_admin_room;
         this.teamConfigs = config.team_sync;
         for (const teamConfig of Object.values(this.teamConfigs)) {
             if (teamConfig.channels?.enabled) {
@@ -224,6 +231,14 @@ export class TeamSyncer {
         const client = await this.main.clientFactory.getTeamClient(teamId);
         const { channel } = (await client.conversations.info({ channel: channelId })) as ConversationsInfoResponse;
         await this.syncChannel(teamId, channel);
+        const room = this.main.rooms.getBySlackChannelId(channelId);
+        if (!room) {
+            log.warn(`No bridged room found for new channel (${channelId}) after sync`);
+            await this.main.notifyAdmins(`${teamId} created channel ${channelId} but problem creating a bridge`);
+            return;
+        }
+
+        await this.main.notifyAdmins(`${teamId} created channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
     }
 
     public async onDiscoveredPrivateChannel(teamId: string, client: WebClient, chanInfo: ConversationsInfoResponse): Promise<void> {
@@ -368,63 +383,103 @@ export class TeamSyncer {
             return;
         }
 
-        try {
-            await this.main.botIntent.sendMessage(room.MatrixRoomId, {
-                msgtype: "m.notice",
-                body: "The Slack channel bridged to this room has been deleted.",
-            });
-        } catch (ex) {
-            log.warn("Failed to send deletion notice into the room:", ex);
+        await this.main.notifyAdmins(`${teamId} removed channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
+        await this.shutDownBridgedRoom("deleted", room.MatrixRoomId);
+    }
+
+    public async onChannelArchived(teamId: string, channelId: string): Promise<void> {
+        log.info(`${teamId} archived channel ${channelId}`);
+        if (!this.getTeamSyncConfig(teamId, "channel", channelId)) {
+            return;
+        }
+        const room = this.main.rooms.getBySlackChannelId(channelId);
+        if (!room) {
+            log.warn("Not unlinking channel, no room found");
+            return;
         }
 
-        // Hide deleted channels in the room directory.
+        await this.main.notifyAdmins(`${teamId} archived channel ${channelId}, bridged room: ${room.MatrixRoomId}`);
+        await this.shutDownBridgedRoom("archived", room.MatrixRoomId);
+    }
+
+    public async shutDownBridgedRoom(reason: string, roomId: string) {
         try {
-            await this.main.botIntent.setRoomDirectoryVisibility(room.MatrixRoomId, "private");
+            await this.main.botIntent.sendMessage(roomId, {
+                msgtype: "m.notice",
+                body: `The Slack channel bridged to this room has been '${reason}'.`,
+            });
+        } catch (ex) {
+            log.warn(`Failed to send '${reason}' notice into the room:`, ex);
+        }
+
+        // Hide from room directory.
+        try {
+            await this.main.botIntent.setRoomDirectoryVisibility(roomId, "private");
         } catch (ex) {
             log.warn("Failed to hide room from the room directory:", ex);
         }
 
         try {
-            await this.main.actionUnlink({ matrix_room_id: room.MatrixRoomId });
+            await this.main.actionUnlink({ matrix_room_id: roomId });
         } catch (ex) {
             log.warn("Tried to unlink room but failed:", ex);
+            await this.main.notifyAdmins(`failed to unlink bridge on ${roomId}`);
         }
     }
 
     public async syncMembershipForRoom(roomId: string, channelId: string, teamId: string, client: WebClient): Promise<void> {
-        const existingGhosts = await this.main.listGhostUsers(roomId);
-        // We assume that we have this
         const teamInfo = (await this.main.datastore.getTeam(teamId));
         if (!teamInfo) {
             throw Error("Could not find team");
         }
-        // Finally, sync membership for the channel.
-        const members = await client.conversations.members({channel: channelId}) as ConversationsMembersResponse;
-        // Ghosts will exist already: We joined them in the user sync.
-        const ghosts = await Promise.all(members.members.map(async(slackUserId) => this.main.ghostStore.get(slackUserId, teamInfo.domain, teamId)));
 
-        const joinedUsers = ghosts.filter((g) => !existingGhosts.includes(g.matrixUserId)); // Skip users that are joined.
-        const leftUsers = existingGhosts.map((userId) => ghosts.find((g) => g.matrixUserId === userId )).filter(g => !!g) as SlackGhost[];
-        log.info(`Joining ${joinedUsers.length} ghosts to ${roomId}`);
-        log.info(`Leaving ${leftUsers.length} ghosts to ${roomId}`);
+        // create Set for both matrix membership state and slack membership state
+        // compare them to figure out who all needs to join the matrix room and leave the matrix room
+        // this obviously assumes we treat slack as the source of truth for membership
+        const existingMatrixUsersSet = new Set<string>();
+        const slackUsersSet = new Set<string>();
+
+        const existingMatrixUsers = await this.main.listGhostAndMappedUsers(roomId);
+        for (const u of existingMatrixUsers) {
+            existingMatrixUsersSet.add(u);
+        }
+
+        const slackUsers = await client.conversations.members({channel: channelId}) as ConversationsMembersResponse;
+        await Promise.all(
+            slackUsers.members.map(async(slackUserId) => {
+                const ghost = await this.main.ghostStore.get(slackUserId, teamInfo.domain, teamId);
+                slackUsersSet.add(ghost.matrixUserId);
+            })
+        );
+
+        const joinedUsers: string[] = [];
+        slackUsersSet.forEach((u) => {
+            if (!existingMatrixUsersSet.has(u)) {
+                joinedUsers.push(u);
+            }
+        });
+        const leftUsers = existingMatrixUsers.filter((userId) => !slackUsersSet.has(userId));
+
+        log.info(`Joining ${joinedUsers.length} ghosts to ${roomId}`,joinedUsers);
+        log.info(`Leaving ${leftUsers.length} ghosts to ${roomId}`,leftUsers);
 
         const queue = new PQueue({concurrency: JOIN_CONCURRENCY});
 
         // Join users who aren't joined
-        queue.addAll(joinedUsers.map((ghost) => async () => {
+        queue.addAll(joinedUsers.map((userId) => async () => {
             try {
-                await this.main.membershipQueue.join(roomId, ghost.matrixUserId, { getId: () => ghost.matrixUserId });
+                await this.main.membershipQueue.join(roomId, userId, { getId: () => userId });
             } catch (ex) {
-                log.warn(`Failed to join ${ghost.matrixUserId} to ${roomId}`);
+                log.warn(`Failed to join ${userId} to ${roomId}`);
             }
         })).catch((ex) => log.error(`queue.addAll(joinedUsers) rejected with an error:`, ex));
 
         // Leave users who are joined
-        queue.addAll(leftUsers.map((ghost) => async () => {
+        queue.addAll(leftUsers.map((userId) => async () => {
             try {
-                await this.main.membershipQueue.leave(roomId, ghost.matrixUserId, { getId: () => ghost.matrixUserId });
+                await this.main.membershipQueue.leave(roomId, userId, { getId: () => userId });
             } catch (ex) {
-                log.warn(`Failed to leave ${ghost.matrixUserId} from ${roomId}`);
+                log.warn(`Failed to leave ${userId} from ${roomId}`);
             }
         })).catch((ex) => log.error(`queue.addAll(leftUsers) rejected with an error:`, ex));
 
@@ -469,7 +524,8 @@ export class TeamSyncer {
                 try {
                     await client.chat.postEphemeral({
                         user: channelItem.creator,
-                        text: `Hint: To bridge to Matrix, run the \`/invite @${user.name}\` command in this channel.`,
+                        text: `Please invite \`@${user.name}\` to this channel (\`/invite @${user.name}\`) so that ` +
+                            `the channel is also available on Matrix.`,
                         channel: channelItem.id,
                     });
                 } catch (error) {
@@ -497,26 +553,62 @@ export class TeamSyncer {
     private async createRoomForChannel(teamId: string, creator: string, channel: ConversationsInfo,
         isPublic = true, inviteList: string[] = []): Promise<string> {
         let intent: Intent;
-        let creatorUserId: string|undefined;
-        try {
-            creatorUserId = (await this.main.ghostStore.get(creator, undefined, teamId)).matrixUserId;
+
+        let admins: string[] | undefined;
+        let mods: string[] | undefined;
+        let creatorFromConfig: string | undefined;
+
+        for (const team in this.teamConfigs) {
+            if (team === "all" || team === teamId ) {
+                const teamConfig = this.teamConfigs[team];
+                mods = teamConfig?.rooms?.moderators;
+                admins = teamConfig?.rooms?.administrators;
+                creatorFromConfig = teamConfig?.rooms?.creator;
+                break;
+            }
+        }
+
+        // default behavior of bot user being admin on room
+        admins?.push(this.main.botUserId);
+
+        // creator specified in config should be an admin
+        if (creatorFromConfig) {
+            admins?.push(creatorFromConfig);
+        }
+
+        let creatorUserId = creatorFromConfig;
+        if (!creatorUserId) {
+            try {
+                creatorUserId = (await this.main.ghostStore.get(creator, undefined, teamId)).matrixUserId;
+                mods?.push(creatorUserId); // make Slack channel creator (user) a mod as well
+            } catch (ex) {
+                // Couldn't get the creator's mxid, will default to the bot below.
+            }
+        }
+
+        if (creatorUserId) {
             intent = this.main.getIntent(creatorUserId);
-        } catch (ex) {
-            // Couldn't get the creator's mxid, using the bot.
+        } else {
             intent = this.main.botIntent;
         }
+
+        // power levels
+        const plUsers = {};
+        for (const mod of mods ?? []) {
+            plUsers[mod] = 50;
+        }
+        for (const admin of admins ?? []) {
+            plUsers[admin] = 100;
+        }
+
         const aliasPrefix = this.getAliasPrefix(teamId);
         const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : undefined;
         let topic: undefined|string;
         if (channel.purpose) {
             topic = channel.purpose.value;
         }
+
         log.debug("Creating new room for channel", channel.name, topic, alias);
-        const plUsers = {};
-        plUsers[this.main.botUserId] = 100;
-        if (creatorUserId) {
-            plUsers[creatorUserId] = 100;
-        }
         inviteList = inviteList.filter((s) => s !== creatorUserId || s !== this.main.botUserId);
         inviteList.push(this.main.botUserId);
         const extraContent: Record<string, unknown>[] = [];

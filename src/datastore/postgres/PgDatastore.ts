@@ -113,6 +113,13 @@ export class PgDatastore implements Datastore, ClientEncryptionStore, Provisioni
         );
     }
 
+    public async getAllMatrixUsernames(): Promise<string[]> {
+        const all = await this.postgresDb.manyOrNone(
+            "SELECT matrix_username FROM matrix_usernames"
+        );
+        return all.map((dbEntry) => dbEntry ? dbEntry.matrix_username : null);
+    }
+
     public async getAllUsersForTeam(teamId: string): Promise<UserEntry[]> {
         const users = await this.postgresDb.manyOrNone("SELECT json FROM users WHERE json::json->>'team_id' = ${teamId}", {
             teamId,

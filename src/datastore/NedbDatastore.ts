@@ -172,6 +172,10 @@ export class NedbDatastore implements Datastore {
         throw Error("method not implemented");
     }
 
+    public async getAllMatrixUsernames(): Promise<string[]> {
+        throw Error("method not implemented");
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     public async setMatrixUsername(slackUserId: string, matrixUsername: string): Promise<null> {
         throw Error("method not implemented");
