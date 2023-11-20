@@ -602,7 +602,7 @@ export class TeamSyncer {
         }
 
         const aliasPrefix = this.getAliasPrefix(teamId);
-        const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : undefined;
+        const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : channel.name.toLowerCase();
         let topic: undefined|string;
         if (channel.purpose) {
             topic = channel.purpose.value;
