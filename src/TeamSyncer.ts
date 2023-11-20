@@ -646,7 +646,7 @@ export class TeamSyncer {
         const {room_id} = await intent.createRoom({
             createAsClient: true,
             options: {
-                name: `#${channel.name}`,
+                name: channel.name,
                 topic,
                 visibility: isPublic ? "public" : "private",
                 room_alias_name: alias,
