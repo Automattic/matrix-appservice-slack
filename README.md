@@ -39,6 +39,7 @@ In addition to all features of the upstream bridge, this fork adds the following
 - Define `rooms` field under teamsync config for who should be the creator, mods and admins in new rooms created by team sync.
 - Tweak message that gets posted in a new channel to suggest inviting `matrixbridge` Slack app.
 - Notify admins in admin room for bridge when bridge initialises upon boot, when a Slack channel is created/archived/deleted and unlinking of bridge fails upon channel archive/delete event.
+- When user is synced, Slack's real name is preferred over display name and updated on user's profile on Matrix
 
 ## Usage
 
