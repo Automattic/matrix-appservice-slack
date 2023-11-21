@@ -602,7 +602,7 @@ export class TeamSyncer {
         }
 
         const aliasPrefix = this.getAliasPrefix(teamId);
-        const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : undefined;
+        const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : channel.name.toLowerCase();
         let topic: undefined|string;
         if (channel.purpose) {
             topic = channel.purpose.value;
@@ -646,7 +646,7 @@ export class TeamSyncer {
         const {room_id} = await intent.createRoom({
             createAsClient: true,
             options: {
-                name: `#${channel.name}`,
+                name: channel.name,
                 topic,
                 visibility: isPublic ? "public" : "private",
                 room_alias_name: alias,
