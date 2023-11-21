@@ -147,9 +147,9 @@ export class SlackGhost {
             throw Error('No intent associated with ghost');
         }
         let changed = false;
-        if (slackUser.profile.display_name && this.displayName !== slackUser.profile.display_name) {
-            await this._intent.setDisplayName(slackUser.profile.display_name);
-            this.displayname = slackUser.profile.display_name;
+        if (slackUser.profile.real_name && this.displayName !== slackUser.profile.real_name) {
+            await this._intent.setDisplayName(slackUser.profile.real_name);
+            this.displayname = slackUser.profile.real_name;
             changed = true;
         }
 
