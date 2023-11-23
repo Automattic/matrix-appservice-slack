@@ -444,13 +444,17 @@ export class TeamSyncer {
             existingMatrixUsersSet.add(u);
         }
 
-        const slackUsers = await client.conversations.members({channel: channelId}) as ConversationsMembersResponse;
-        await Promise.all(
-            slackUsers.members.map(async(slackUserId) => {
-                const ghost = await this.main.ghostStore.get(slackUserId, teamInfo.domain, teamId);
-                slackUsersSet.add(ghost.matrixUserId);
-            })
-        );
+        let cursor = '';
+        do {
+            const slackUsers = await client.conversations.members({channel: channelId, limit: 1000, cursor}) as ConversationsMembersResponse;
+            await Promise.all(
+                slackUsers.members.map(async(slackUserId) => {
+                    const ghost = await this.main.ghostStore.get(slackUserId, teamInfo.domain, teamId);
+                    slackUsersSet.add(ghost.matrixUserId);
+                })
+            );
+            cursor = slackUsers.response_metadata.next_cursor;
+        }  while (cursor !== "");
 
         const joinedUsers: string[] = [];
         slackUsersSet.forEach((u) => {
