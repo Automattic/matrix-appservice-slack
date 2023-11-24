@@ -36,6 +36,7 @@ export interface ITeamSyncConfig {
         alias_prefix?: string;
         allow_private?: boolean;
         allow_public?: boolean;
+        allow_membership_sync?: boolean;
         hint_channel_admins?: boolean;
     };
     users?: {
@@ -77,6 +78,9 @@ export class TeamSyncer {
                 teamConfig.channels.allow_private = teamConfig.channels.allow_private === undefined ? true : teamConfig.channels.allow_private;
                 if (!teamConfig.channels.allow_public && !teamConfig.channels.allow_private) {
                     throw Error('At least one of allow_public, allow_private must be true in the teamSync config');
+                }
+                if (teamConfig.channels.allow_membership_sync === undefined) {
+                    teamConfig.channels.allow_membership_sync = true;
                 }
                 // Send hint to channel admins
                 teamConfig.channels.hint_channel_admins =
@@ -431,6 +435,14 @@ export class TeamSyncer {
         const teamInfo = (await this.main.datastore.getTeam(teamId));
         if (!teamInfo) {
             throw Error("Could not find team");
+        }
+
+        const config: false | ITeamSyncConfig = this.getTeamSyncConfig(teamId,"channel");
+        if (config) {
+            if (config.channels?.allow_membership_sync === false) {
+                log.info("Skipping membership sync because disabled in config");
+                return;
+            }
         }
 
         // create Set for both matrix membership state and slack membership state
