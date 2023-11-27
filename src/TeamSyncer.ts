@@ -617,6 +617,9 @@ export class TeamSyncer {
             plUsers[admin] = 100;
         }
 
+        // Important note: default alias needs to be undefined if alias prefix isn't used
+        // otherwise teamsync would fail to create new room since if room alias is specified,
+        // it needs to have exclusive access to such rooms (configured in app service config)
         const aliasPrefix = this.getAliasPrefix(teamId);
         const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : undefined;
         let topic: undefined|string;
