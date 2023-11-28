@@ -618,8 +618,8 @@ export class TeamSyncer {
         }
 
         // Important note: default alias needs to be undefined if alias prefix isn't used
-        // otherwise teamsync would fail to create new room since if room alias is specified,
-        // it needs to have exclusive access to such rooms (configured in app service config)
+        // otherwise Synapse refuses to create the room even when room alias is specified, as if it wasn't specified
+        // Seems like a bug but looking at Synapse's code, I couldn't find what's wrong
         const aliasPrefix = this.getAliasPrefix(teamId);
         const alias = aliasPrefix ? `${aliasPrefix}${channel.name.toLowerCase()}` : undefined;
         let topic: undefined|string;
