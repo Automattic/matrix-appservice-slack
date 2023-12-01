@@ -237,7 +237,7 @@ export class SlackMessageParser {
 
         // TODO: This is fixing plaintext mentions, but should be refactored.
         // https://github.com/matrix-org/matrix-appservice-slack/issues/110
-        body = body.replace(/<https:\/\/matrix\.to\/#\/@.+:.+\|(.+)>/g, "$1");
+        body = body.replace(/<https:\/\/matrix\.to\/#\/@[^:]+:[^|]+\|([^>]+)>/g, "$1");
 
         // Convert plain text body to HTML.
         // We first run it through Slackdown, which will convert some elements to HTML.
