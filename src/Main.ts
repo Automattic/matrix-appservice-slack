@@ -757,6 +757,11 @@ export class Main {
             return;
         }
 
+        // ignore events which have slack_bridge_ignore property in content field set as True
+        if (ev.content["org.wordpress.slack_bridge_ignore"] !== undefined && ev.content["org.wordpress.slack_bridge_ignore"] === true) {
+            return;
+        }
+
         this.incCounter(METRIC_RECEIVED_MESSAGE, {side: "matrix"});
         const endTimer = this.startTimer("matrix_request_seconds");
 
